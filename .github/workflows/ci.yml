@@ -1,0 +1,41 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Setup Bun (assuming you are using Bun)
+      uses: oven-sh/setup-bun@v1
+      with:
+        bun-version: latest # Or specify a version like 1.1.0
+
+    - name: Install Dependencies
+      run: bun install
+
+    - name: Run ESLint
+      run: bun run lint # Assuming your package.json has a "lint" script
+
+    - name: Run TypeScript Check
+      run: bun run check-types # Assuming your package.json has a "check-types" script, or 'tsc --noEmit'
+
+    - name: Build Project
+      run: bun run build # Assuming your package.json has a "build" script
+      env:
+        # Pass Supabase environment variables for build process
+        NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        # Add any other NEXT_PUBLIC_ variables required for build

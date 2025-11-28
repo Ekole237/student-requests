@@ -3,6 +3,22 @@
 import Link from "next/link";
 import clsx from "clsx";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
+import {
+  ChevronRight,
+  LayoutDashboard,
+  Users,
+  Building2,
+  List,
+} from "lucide-react";
+
+interface NavItem {
+  name: string;
+  href: string;
+  icon?: React.ReactNode;
+  children?: NavItem[];
+  isAdminOnly?: boolean;
+}
 
 interface SideNavigationProps {
   open: boolean;
@@ -16,8 +32,99 @@ export default function SideNavigation({
   isAdmin,
 }: SideNavigationProps) {
   const pathname = usePathname();
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
-  const isLinkActive = (href: string) => pathname === href;
+  const toggleExpand = (itemName: string) => {
+    setExpanded((prev) => ({ ...prev, [itemName]: !prev[itemName] }));
+  };
+
+  const navItems: NavItem[] = [
+    {
+      name: "Mes Requêtes",
+      href: "/dashboard",
+      icon: <List size={18} />,
+    },
+    {
+      name: "Administration",
+      href: "/admin", // This will be the admin requests page by default
+      icon: <LayoutDashboard size={18} />,
+      isAdminOnly: true,
+      children: [
+        {
+          name: "Requêtes",
+          href: "/admin",
+          icon: <List size={18} />,
+        },
+        {
+          name: "Étudiants",
+          href: "/admin/students",
+          icon: <Users size={18} />,
+        },
+        {
+          name: "Départements",
+          href: "/admin/departments",
+          icon: <Building2 size={18} />,
+        },
+      ],
+    },
+  ];
+
+  const renderNavItems = (items: NavItem[]) => {
+    return items.map((item) => {
+      const isActive = item.href === pathname || (item.children && pathname.startsWith(item.href));
+      const isExpanded = expanded[item.name] || isActive;
+
+      if (item.isAdminOnly && !isAdmin) {
+        return null;
+      }
+
+      if (item.children) {
+        return (
+          <div key={item.name}>
+            <button
+              onClick={() => toggleExpand(item.name)}
+              className={clsx(
+                "nav-item flex items-center justify-between w-full",
+                { "bg-gray-200": isActive && !isExpanded }, // Highlight parent if active but not expanded
+                { "font-semibold": isActive },
+              )}
+            >
+              <span className="flex items-center gap-2">
+                {item.icon}
+                {item.name}
+              </span>
+              <ChevronRight
+                size={16}
+                className={clsx("transition-transform duration-200", {
+                  "rotate-90": isExpanded,
+                })}
+              />
+            </button>
+            {isExpanded && (
+              <div className="ml-4 border-l pl-2 space-y-2">
+                {renderNavItems(item.children)}
+              </div>
+            )}
+          </div>
+        );
+      } else {
+        return (
+          <Link
+            key={item.name}
+            href={item.href}
+            className={clsx("nav-item flex items-center gap-2", {
+              "bg-gray-200": isActive,
+              "font-semibold": isActive,
+            })}
+            onClick={onClose} // Close sidebar on mobile when a link is clicked
+          >
+            {item.icon}
+            {item.name}
+          </Link>
+        );
+      }
+    });
+  };
 
   return (
     <aside
@@ -36,24 +143,7 @@ export default function SideNavigation({
         <h2 className="hidden lg:block text-2xl font-bold mb-6">Dashboard</h2>
 
         <nav className="flex flex-col gap-2">
-          <Link
-            href="/dashboard"
-            className={clsx("nav-item", {
-              "bg-gray-200": isLinkActive("/dashboard"),
-            })}
-          >
-            Mes Requêtes
-          </Link>
-          {isAdmin && (
-            <Link
-              href="/admin"
-              className={clsx("nav-item", {
-                "bg-gray-200": isLinkActive("/admin"),
-              })}
-            >
-              Admin
-            </Link>
-          )}
+          {renderNavItems(navItems)}
         </nav>
       </div>
     </aside>

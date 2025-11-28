@@ -52,7 +52,7 @@ export default function SideNavigation({
     },
     {
       name: "Administration",
-      href: "/admin", // This will be the admin requests page by default
+      href: "/admin", 
       icon: <LayoutDashboard size={18} />,
       isAdminOnly: true,
       children: [
@@ -91,8 +91,9 @@ export default function SideNavigation({
               onClick={() => toggleExpand(item.name)}
               className={clsx(
                 "nav-item flex items-center justify-between w-full",
-                { "bg-gray-200": isActive && !isExpanded }, // Highlight parent if active but not expanded
+                { "bg-primary text-primary-foreground": isActive && !isExpanded },
                 { "font-semibold": isActive },
+                "hover:bg-primary/10 focus:bg-primary/10"
               )}
             >
               <span className="flex items-center gap-2">
@@ -118,11 +119,11 @@ export default function SideNavigation({
           <Link
             key={item.name}
             href={item.href}
-            className={clsx("nav-item flex items-center gap-2", {
-              "bg-gray-200": isActive,
+            className={clsx("nav-item flex items-center gap-2 hover:bg-primary/10 focus:bg-primary/10", {
+              "bg-primary text-primary-foreground": isActive,
               "font-semibold": isActive,
             })}
-            onClick={onClose} // Close sidebar on mobile when a link is clicked
+            onClick={onClose} 
           >
             {item.icon}
             {item.name}
@@ -135,7 +136,8 @@ export default function SideNavigation({
   return (
     <aside
       className={clsx(
-        "fixed inset-y-0 left-0 z-40 w-64 bg-white shadow-lg transform transition-transform duration-300",
+        "fixed inset-y-0 left-0 z-40 w-64 bg-background shadow-lg transform transition-transform duration-300",
+        "border-r border-border-secondary",
         "lg:static lg:translate-x-0", // Desktop
         open ? "translate-x-0" : "-translate-x-full", // Mobile
       )}

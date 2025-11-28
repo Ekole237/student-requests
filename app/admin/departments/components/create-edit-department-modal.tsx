@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { DepartmentWithHead, Profile } from "../page";
+import { DepartmentWithHead } from "../page";
 import {
   Dialog,
   DialogContent,
@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Profile } from "@/lib/types";
 
 interface CreateEditDepartmentModalProps {
   department: DepartmentWithHead | null; // Null for create mode
@@ -80,7 +81,7 @@ export default function CreateEditDepartmentModal({
       }
     }
     fetchHeads();
-  }, []);
+  }, [supabase]); // Add supabase to dependency array
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -128,9 +129,9 @@ export default function CreateEditDepartmentModal({
 
       onUpdateSuccess();
       onClose();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error saving department:", err);
-      setError(err.message || "An error occurred during save.");
+      setError((err as Error).message || "An error occurred during save.");
     } finally {
       setIsLoading(false);
     }

@@ -97,9 +97,9 @@ export default function ViewStudentModal({
 
       onUpdateSuccess(); // Trigger parent to re-fetch data
       onClose();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error updating student:", err);
-      setError(err.message || "An error occurred during update.");
+      setError((err as Error).message || "An error occurred during update.");
     } finally {
       setIsLoading(false);
     }

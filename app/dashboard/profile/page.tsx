@@ -1,11 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import type { Profile, Student, Teacher, UserRole } from "@/lib/types"; // Import Teacher type
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
+import type { Student, Teacher } from "@/lib/types";
+
 import ProfileForm from "./profile-form";
-import ProfileDetailsForm from "./profile-details-form"; // Import the new component
-import TeacherProfileForm from "./teacher-profile-form"; // Import TeacherProfileForm
+import ProfileDetailsForm from "./profile-details-form";
+import TeacherProfileForm from "./teacher-profile-form";
 
 export default async function ProfilePage() {
   const supabase = await createClient();
@@ -27,7 +26,6 @@ export default async function ProfilePage() {
 
   if (profileError || !profileData) {
     console.error("Error fetching profile:", profileError);
-    // Handle error, maybe display a generic profile page or redirect
     return <p>Error loading profile.</p>;
   }
 
@@ -43,7 +41,7 @@ export default async function ProfilePage() {
 
   const roles = userRolesData?.map((ur) => ur.role) || [];
   const isStudent = roles.includes("student");
-  const isTeacher = roles.includes("teacher"); // Check for teacher role
+  const isTeacher = roles.includes("teacher");
 
   let studentProfile: Student | null = null;
   if (isStudent) {
@@ -52,21 +50,21 @@ export default async function ProfilePage() {
       .select("*")
       .eq("user_id", user.id)
       .single();
-    if (studentError && studentError.code !== 'PGRST116') { // PGRST116 means no rows found
+    if (studentError && studentError.code !== 'PGRST116') {
       console.error("Error fetching student profile:", studentError);
       return <p>Error loading student profile.</p>;
     }
     studentProfile = studentData;
   }
 
-  let teacherProfile: Teacher | null = null; // Initialize teacher profile
+  let teacherProfile: Teacher | null = null;
   if (isTeacher) {
     const { data: teacherData, error: teacherError } = await supabase
       .from("teachers")
       .select("*")
       .eq("user_id", user.id)
       .single();
-    if (teacherError && teacherError.code !== 'PGRST116') { // PGRST116 means no rows found
+    if (teacherError && teacherError.code !== 'PGRST116') {
       console.error("Error fetching teacher profile:", teacherError);
       return <p>Error loading teacher profile.</p>;
     }
@@ -75,9 +73,9 @@ export default async function ProfilePage() {
 
   return (
     <div className="flex-1 p-4 md:p-8 mx-auto max-w-3xl">
-      <h1 className="text-3xl font-bold mb-6">My Profile</h1> {/* Changed title to My Profile */}
+      <h1 className="text-3xl font-bold mb-6">My Profile</h1>
 
-      <ProfileDetailsForm initialProfileData={profileData} /> {/* New component */}
+      <ProfileDetailsForm initialProfileData={profileData} />
 
       {isStudent && (
         <div className="mt-8">

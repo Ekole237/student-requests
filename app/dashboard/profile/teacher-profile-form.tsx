@@ -63,9 +63,9 @@ export default function TeacherProfileForm({
         setSuccess("Teacher profile created successfully!");
       }
       router.refresh(); // Re-fetch server-side props
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error saving teacher profile:", err);
-      setError(err.message || "An unexpected error occurred.");
+      setError((err as Error).message || "An unexpected error occurred.");
     } finally {
       setIsLoading(false);
     }

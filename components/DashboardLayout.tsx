@@ -15,7 +15,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   }, [fetchUserRole]);
 
   return (
-    <div className="h-screen flex bg-gray-100">
+    <div className="h-screen flex bg-background">
       <SideNavigation open={open} onClose={() => setOpen(false)} isAdmin={isAdmin} />
 
       <div className="flex-1 flex flex-col">

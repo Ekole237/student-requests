@@ -72,10 +72,10 @@ export default function ProfileForm({
         if (error) throw error;
         setSuccess("Student profile created successfully!");
       }
-      router.refresh(); // Re-fetch server-side props
-    } catch (err: any) {
+      router.refresh();
+    } catch (err: unknown) {
       console.error("Error saving student profile:", err);
-      setError(err.message || "An unexpected error occurred.");
+      setError((err as Error).message || "An unexpected error occurred.");
     } finally {
       setIsLoading(false);
     }

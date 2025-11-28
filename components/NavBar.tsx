@@ -27,7 +27,7 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
   }, [supabase]);
 
   return (
-    <header className="bg-white h-16 shadow flex items-center justify-between px-4 lg:px-6">
+    <header className="bg-background h-16 shadow flex items-center justify-between px-4 lg:px-6 border-b border-border-secondary">
       <Button
         className="lg:hidden text-2xl"
         onClick={onMenuClick}
@@ -37,13 +37,14 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
       </Button>
 
       <div className="flex-1"></div>
+      <div className="flex items-center gap-4">
+        {user && <NotificationList userId={user.id} />}
 
-      {user && <NotificationList userId={user.id} />}
-
-      <Suspense>
-        <AuthButton />
-      </Suspense>
-      <ThemeSwitcher />
+        <Suspense>
+         <AuthButton />
+        </Suspense>
+        <ThemeSwitcher />
+      </div>
     </header>
   );
 }

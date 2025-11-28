@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Badge, badgeVariants } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+// import { cn } from "@/lib/utils"; // Removed unused import
 
 export const columns = (onViewRequest: (request: Requete) => void): ColumnDef<Requete>[] => [
   {

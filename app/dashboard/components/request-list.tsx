@@ -5,7 +5,7 @@ import type { Requete } from "@/lib/types";
 import { columns } from "./columns";
 import { DataTable } from "./data-table";
 import ViewRequestModal from "./view-request-modal";
-import { Empty, EmptyContent, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription } from "@/components/ui/empty";
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription } from "@/components/ui/empty"; // Removed EmptyContent
 import { InboxIcon } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";

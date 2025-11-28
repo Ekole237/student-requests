@@ -149,9 +149,9 @@ export default function NewRequest() {
       });
 
       router.push("/dashboard"); // Redirect to the dashboard
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error creating request:", err);
-      setError(err.message || "An error occurred while creating the request.");
+      setError((err as Error).message || "An error occurred while creating the request.");
     } finally {
       setLoading(false);
     }

@@ -127,7 +127,7 @@ export default function UpdateRequestModal({
     const supabase = createClient();
 
           try {
-            let updatePayload: any = {
+            const updatePayload: Partial<Requete> = {
               status: status as RequestStatus,
               priority: priority as Requete['priority'],
               assigned_to: assignedTo,
@@ -155,8 +155,8 @@ export default function UpdateRequestModal({
     
             onUpdateSuccess();
             onClose();
-          } catch (error: any) {
-            setError(error.message);
+          } catch (error: unknown) {
+            setError((error as Error).message);
           } finally {
             setIsUpdating(false);
           }  };

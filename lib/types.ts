@@ -135,7 +135,7 @@ export interface AuditLog {
   request_id: string;
   user_id: string | null;
   action: string;
-  old_value: any | null;
-  new_value: any | null;
+  old_value: unknown | null;
+  new_value: unknown | null;
   created_at: string;
 }

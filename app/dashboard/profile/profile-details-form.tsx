@@ -51,9 +51,9 @@ export default function ProfileDetailsForm({
       if (error) throw error;
       setSuccess("Profile updated successfully!");
       router.refresh(); // Re-fetch server-side props
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error saving profile:", err);
-      setError(err.message || "An unexpected error occurred.");
+      setError((err as Error).message || "An unexpected error occurred.");
     } finally {
       setIsLoading(false);
     }

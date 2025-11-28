@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { RequeteComplete, Message, Attachment } from "@/lib/types";
 import {
@@ -36,7 +36,7 @@ export default function ViewRequestModal({
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const supabase = createClient();
 
-  const fetchRequestData = async () => {
+  const fetchRequestData = useCallback(async () => {
     if (!requestId) return;
 
     setIsLoading(true);
@@ -74,20 +74,20 @@ export default function ViewRequestModal({
 
       if (attachmentsError) throw attachmentsError;
       setAttachments(attachmentsData as Attachment[]);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error fetching request data:", err);
-      setError(err.message);
+      setError((err as Error).message);
       setRequest(null);
       setMessages([]);
       setAttachments([]);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [requestId, supabase]);
 
   useEffect(() => {
     fetchRequestData();
-  }, [requestId]);
+  }, [fetchRequestData]);
 
   const handleSendMessage = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -108,10 +108,10 @@ export default function ViewRequestModal({
       if (messageError) throw messageError;
 
       setNewMessage("");
-      fetchRequestData(); // Re-fetch to update messages list
-    } catch (err: any) {
+      fetchRequestData();
+    } catch (err: unknown) {
       console.error("Error sending message:", err);
-      setError(err.message);
+      setError((err as Error).message);
     } finally {
       setIsSendingMessage(false);
     }

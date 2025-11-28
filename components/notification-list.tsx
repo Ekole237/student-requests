@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Notification } from "@/lib/types";
 import { formatDistanceToNow } from "date-fns";
@@ -27,7 +27,7 @@ export default function NotificationList({ userId }: NotificationListProps) {
   const [error, setError] = useState<string | null>(null);
   const supabase = createClient();
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     setIsLoading(true);
     setError(null);
 
@@ -45,13 +45,13 @@ export default function NotificationList({ userId }: NotificationListProps) {
       setUnreadCount(data?.filter((n) => !n.is_read).length || 0);
     }
     setIsLoading(false);
-  };
+  }, [userId, supabase, setNotifications, setUnreadCount, setIsLoading, setError]); // Add all dependencies
 
   useEffect(() => {
     if (userId) {
       fetchNotifications();
     }
-  }, [userId]);
+  }, [fetchNotifications, userId]); // Add userId to ensure effect re-runs if userId changes. fetchNotifications is now stable.
 
   const markAsRead = async (notificationId: string) => {
     const { error } = await supabase

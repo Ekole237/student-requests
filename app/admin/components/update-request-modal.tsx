@@ -131,7 +131,7 @@ export default function UpdateRequestModal({
               status: status as RequestStatus,
               priority: priority as Requete['priority'],
               assigned_to: assignedTo,
-              admin_comment: adminComment,
+              processing_comment: adminComment,
             };
     
             // Set resolved_at and resolved_by if status becomes 'completed'

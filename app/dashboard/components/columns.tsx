@@ -2,7 +2,7 @@
 
 import { Requete } from "@/lib/types";
 import { ColumnDef } from "@tanstack/react-table";
-import { MoreHorizontal } from "lucide-react";
+import { Eye, Eye as ViewIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -12,77 +12,79 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Badge, badgeVariants } from "@/components/ui/badge";
-// import { cn } from "@/lib/utils"; // Removed unused import
+import { Badge, type BadgeProps } from "@/components/ui/badge";
+
+const typeLabels: Record<string, string> = {
+  cc_absence: "Absence CC",
+  cc_error: "Erreur CC",
+  sn_absence: "Absence SN",
+  other: "Autre",
+};
+
+const statusConfig: Record<string, { variant: BadgeProps["variant"]; label: string }> = {
+  pending: { variant: "secondary", label: "En attente" },
+  in_progress: { variant: "default", label: "En cours" },
+  completed: { variant: "default", label: "Complétée" },
+  rejected: { variant: "destructive", label: "Rejetée" },
+};
 
 export const columns = (onViewRequest: (request: Requete) => void): ColumnDef<Requete>[] => [
   {
     accessorKey: "title",
-    header: "Title",
+    header: "Titre",
+    cell: ({ row }) => {
+      const title: string = row.getValue("title");
+      return <div className="font-medium max-w-xs truncate">{title}</div>;
+    },
   },
   {
     accessorKey: "type",
     header: "Type",
     cell: ({ row }) => {
       const type: string = row.getValue("type");
-      return (
-        <span className="capitalize">
-          {type.replace(/_/g, " ")}
-        </span>
-      );
+      return <span className="text-sm">{typeLabels[type] || type}</span>;
     },
   },
   {
     accessorKey: "status",
-    header: "Status",
+    header: "Statut",
     cell: ({ row }) => {
       const status: Requete["status"] = row.getValue("status");
-      let variant: Parameters<typeof badgeVariants>[0]["variant"] = "default";
-      if (status === "pending") {
-        variant = "secondary";
-      } else if (status === "in_progress") {
-        variant = "default";
-      } else if (status === "completed") {
-        variant = "default";
-      } else if (status === "rejected") {
-        variant = "destructive";
-      }
-      return <Badge variant={variant}>{status.replace(/_/g, " ")}</Badge>;
+      const config = statusConfig[status] || { variant: "default", label: status };
+      return <Badge variant={config.variant}>{config.label}</Badge>;
     },
   },
   {
     accessorKey: "created_at",
-    header: "Created At",
+    header: "Créée le",
     cell: ({ row }) => {
       const date = new Date(row.getValue("created_at"));
-      const formatted = date.toLocaleDateString();
-      return <div>{formatted}</div>;
+      const formatted = date.toLocaleDateString("fr-FR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
+      return <div className="text-sm">{formatted}</div>;
     },
   },
   {
     id: "actions",
+    header: "Actions",
     cell: ({ row }) => {
       const requete = row.original;
 
       return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <span className="sr-only">Open menu</span>
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            <DropdownMenuItem
-              onClick={() => navigator.clipboard.writeText(requete.id)}
-            >
-              Copy request ID
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => onViewRequest(requete)}>View details</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onViewRequest(requete)}
+            className="gap-2"
+          >
+            <Eye size={16} />
+            <span className="hidden sm:inline">Voir</span>
+          </Button>
+        </div>
       );
     },
   },

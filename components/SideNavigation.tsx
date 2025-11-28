@@ -10,7 +10,9 @@ import {
   Users,
   Building2,
   List,
-  User, // Imported User icon
+  User,
+  CheckCircle2,
+  Plus,
 } from "lucide-react";
 
 interface NavItem {
@@ -25,12 +27,14 @@ interface SideNavigationProps {
   open: boolean;
   onClose: () => void;
   isAdmin: boolean;
+  userRole?: "student" | "teacher" | "rp" | "director" | "admin";
 }
 
 export default function SideNavigation({
   open,
   onClose,
   isAdmin,
+  userRole = "student",
 }: SideNavigationProps) {
   const pathname = usePathname();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -41,38 +45,64 @@ export default function SideNavigation({
 
   const navItems: NavItem[] = [
     {
-      name: "My Profile",
+      name: "Mon Profil",
       href: "/dashboard/profile",
       icon: <User size={18} />,
     },
-    {
-      name: "Mes Requêtes",
-      href: "/dashboard",
-      icon: <List size={18} />,
-    },
-    {
-      name: "Administration",
-      href: "/admin", 
-      icon: <LayoutDashboard size={18} />,
-      isAdminOnly: true,
-      children: [
-        {
-          name: "Requêtes",
-          href: "/admin",
-          icon: <List size={18} />,
-        },
-        {
-          name: "Étudiants",
-          href: "/admin/students",
-          icon: <Users size={18} />,
-        },
-        {
-          name: "Départements",
-          href: "/admin/departments",
-          icon: <Building2 size={18} />,
-        },
-      ],
-    },
+    ...(userRole === "student"
+      ? [
+          {
+            name: "Mes Requêtes",
+            href: "/dashboard",
+            icon: <List size={18} />,
+          },
+          {
+            name: "Soumettre une Requête",
+            href: "/dashboard/submit",
+            icon: <Plus size={18} />,
+          },
+        ]
+      : []),
+    ...(userRole === "teacher" || userRole === "rp" || userRole === "director"
+      ? [
+          {
+            name: "Ma Queue de Traitement",
+            href: "/my-queue",
+            icon: <CheckCircle2 size={18} />,
+          },
+        ]
+      : []),
+    ...(isAdmin
+      ? [
+          {
+            name: "Administration",
+            href: "/admin",
+            icon: <LayoutDashboard size={18} />,
+            children: [
+              {
+                name: "Validation des Requêtes",
+                href: "/admin/validation",
+                icon: <CheckCircle2 size={18} />,
+              },
+              {
+                name: "Toutes les Requêtes",
+                href: "/admin",
+                icon: <List size={18} />,
+              },
+              {
+                name: "Étudiants",
+                href: "/admin/students",
+                icon: <Users size={18} />,
+              },
+              {
+                name: "Départements",
+                href: "/admin/departments",
+                icon: <Building2 size={18} />,
+              },
+            ],
+          },
+        ]
+      : []),
   ];
 
   const renderNavItems = (items: NavItem[]) => {

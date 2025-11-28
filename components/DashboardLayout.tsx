@@ -1,14 +1,14 @@
 "use client";
 
-import { useState, ReactNode, useEffect } from "react";
+import { useState, ReactNode, useEffect, Suspense } from "react";
 import SideNavigation from "./SideNavigation";
 import Navbar from "./NavBar";
 import Breadcrumb from "./Breadcrumb";
 import { useUserStore } from "@/stores/user";
 
-export default function DashboardLayout({ children }: { children: ReactNode }) {
+function DashboardContent({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
-  const { fetchUserRole, isAdmin } = useUserStore();
+  const { fetchUserRole, isAdmin, userRole } = useUserStore();
 
   useEffect(() => {
     fetchUserRole();
@@ -16,7 +16,12 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="h-screen flex bg-background">
-      <SideNavigation open={open} onClose={() => setOpen(false)} isAdmin={isAdmin} />
+      <SideNavigation 
+        open={open} 
+        onClose={() => setOpen(false)} 
+        isAdmin={isAdmin}
+        userRole={(userRole || "student") as "student" | "teacher" | "rp" | "director" | "admin"}
+      />
 
       <div className="flex-1 flex flex-col">
         <Navbar onMenuClick={() => setOpen(true)} />
@@ -24,5 +29,13 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         <main className="flex-1 p-4 md:p-6 overflow-y-auto">{children}</main>
       </div>
     </div>
+  );
+}
+
+export default function DashboardLayout({ children }: { children: ReactNode }) {
+  return (
+    <Suspense fallback={<div className="h-screen bg-background" />}>
+      <DashboardContent>{children}</DashboardContent>
+    </Suspense>
   );
 }

@@ -233,13 +233,13 @@ export default function ViewRequestModal({
                   </span>
                 </div>
               )}
-              {request.admin_comment && (
+              {request.processing_comment && (
                 <div className="grid grid-cols-4 items-center gap-4">
                   <span className="text-sm font-medium leading-none text-right">
-                    Admin Comment:
+                    Commentaire:
                   </span>
                   <span className="col-span-3 text-sm text-muted-foreground">
-                    {request.admin_comment}
+                    {request.processing_comment}
                   </span>
                 </div>
               )}

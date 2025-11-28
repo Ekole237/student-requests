@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import type { Requete } from "@/lib/types";
+
+export const dynamic = "force-dynamic";
 import AdminRequestList from "./components/admin-request-list";
 
 export default async function AdminDashboard() {

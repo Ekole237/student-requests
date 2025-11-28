@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Badge, badgeVariants } from "@/components/ui/badge";
+import { Badge, badgeVariants, BadgeProps } from "@/components/ui/badge"; // Import BadgeProps
 
 export const columns = (
   onViewRequest: (request: Requete) => void,
@@ -40,17 +40,26 @@ export const columns = (
       header: "Status",
       cell: ({ row }) => {
         const status: Requete["status"] = row.getValue("status");
-        let variant: Parameters<typeof badgeVariants>[0]["variant"] = "default";
-        if (status === "pending") {
+        let variant: BadgeProps["variant"] = "default";
+        const statusLabels: Record<string, string> = {
+          submitted: "Soumise",
+          validated: "Validée",
+          assigned: "Assignée",
+          processing: "En traitement",
+          completed: "Complétée",
+          rejected: "Rejetée",
+        };
+        
+        if (status === "submitted") {
           variant = "secondary";
-        } else if (status === "in_progress") {
+        } else if (status === "validated" || status === "assigned" || status === "processing") {
           variant = "default";
         } else if (status === "completed") {
           variant = "default";
         } else if (status === "rejected") {
           variant = "destructive";
         }
-        return <Badge variant={variant}>{status.replace(/_/g, " ")}</Badge>;
+        return <Badge variant={variant}>{statusLabels[status] || status}</Badge>;
       },
     },
     {

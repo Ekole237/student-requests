@@ -1,6 +1,8 @@
 export type AppRole = "admin" | "student" | "department_head" | "teacher";
 
-export type RequestStatus = "pending" | "in_progress" | "completed" | "rejected";
+export type RequestStatus = "submitted" | "validated" | "assigned" | "processing" | "completed" | "rejected";
+export type ValidationStatus = "pending" | "validated" | "rejected";
+export type FinalStatus = "approved" | "rejected" | null;
 
 export const RequestType = {
   grade_inquiry: "Demande de note",
@@ -9,11 +11,12 @@ export const RequestType = {
   grade_correction: "Correction de note",
   schedule_change: "Changement d'horaire",
   other: "Autre",
-} as const; // 'as const' makes it a readonly tuple/object, allowing type inference of literal values
+} as const;
 
-export type RequestTypeEnum = keyof typeof RequestType; // For type safety when using the keys
+export type RequestTypeEnum = keyof typeof RequestType;
 
 export type RequestPriority = "low" | "normal" | "high" | "urgent";
+export type GradeType = "CC" | "SN" | null;  // CC = Contrôle Continu, SN = Session Normale
 
 export interface Profile {
   id: string;
@@ -96,19 +99,46 @@ export interface Notification {
 }
 
 export interface Requete {
+  // === INFOS ÉTUDIANT (IMMUABLES APRÈS SOUMISSION) ===
   id: string;
-  student_id: string;
-  type: RequestTypeEnum; // Use the new enum type
-  title: string;
-  description: string;
-  status: RequestStatus;
-  priority: RequestPriority; // Added
-  assigned_to: string | null;
-  attachment_url: string | null;
-  admin_comment: string | null;
-  resolved_at: string | null; // Added
-  resolved_by: string | null; // Added
-  created_at: string;
+  student_id: string;              // FK → profiles.id
+  type: RequestTypeEnum;            // grade_inquiry, absence_justification, etc.
+  title: string;                    // IMMUTABLE après soumission
+  description: string;              // IMMUTABLE après soumission
+  attachment_url: string | null;    // Premier fichier - IMMUTABLE
+  created_at: string;               // IMMUTABLE
+  
+  // === METADATA POUR ROUTAGE INTELLIGENT ===
+  course_id: string | null;         // Pour trouver l'enseignant (CC)
+  course_name: string | null;       // Ex: "Mathématiques"
+  subject_code: string | null;      // Ex: "MATH101"
+  grade_type: GradeType;            // CC (Contrôle Continu) vs SN (Session Normale)
+  
+  // === VALIDATION CONFORMITÉ (ADMIN) ===
+  validation_status: ValidationStatus;  // pending → validated / rejected
+  rejection_reason: string | null;      // Motif du rejet si non-conforme
+  
+  // === ROUTAGE (IMMUABLE APRÈS VALIDATION) ===
+  routed_to_id: string | null;          // Destinataire: teacher/RP/director/member
+  routed_to_role: AppRole | null;       // Rôle du destinataire
+  destination_member_id: string | null; // Pour "other" type
+  
+  // === ASSIGNATION & VALIDATION ===
+  assigned_to: string | null;           // Admin qui a validé
+  assigned_to_date: string | null;
+  
+  // === TRAITEMENT (DESTINATAIRE) ===
+  status: RequestStatus;                // submitted → validated → processing → completed/rejected
+  processing_comment: string | null;    // Commentaire du destinataire pendant traitement
+  
+  // === RÉSOLUTION ===
+  final_status: FinalStatus;            // Résultat: approved / rejected / null
+  final_comment: string | null;         // Motif final
+  resolved_at: string | null;
+  resolved_by: string | null;           // Qui a décidé (teacher/RP/director)
+  
+  // === METADATA ===
+  priority: RequestPriority;
   updated_at: string;
 }
 
@@ -138,4 +168,32 @@ export interface AuditLog {
   old_value: unknown | null;
   new_value: unknown | null;
   created_at: string;
+}
+
+export interface RequestValidation {
+  id: string;
+  request_id: string;                    // FK → requetes.id
+  validated_by: string;                  // Admin ID
+  validation_date: string;
+  conformity_status: "conforming" | "non_conforming";
+  rejection_reason: string | null;
+  attachments_checked: number;
+  created_at: string;
+}
+
+export interface RequestRouting {
+  id: string;
+  request_id: string;                    // FK → requetes.id
+  routed_from_id: string;                // Admin qui a routé
+  routed_from_date: string;
+  routed_to_id: string;                  // Destinataire
+  routed_to_role: AppRole;
+  request_type: RequestTypeEnum;
+  subcategory: string | null;            // CC, SN, etc.
+  routing_reason: string | null;
+  response_status: "pending" | "processing" | "completed";
+  responder_comment: string | null;
+  responder_decision: "approved" | "rejected" | null;
+  created_at: string;
+  updated_at: string;
 }

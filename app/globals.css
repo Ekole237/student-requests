@@ -65,4 +65,8 @@
   body {
     @apply bg-background text-foreground;
   }
+  .nav-item {
+    @apply p-2 rounded hover:bg-gray-100;
+  }
+
 }

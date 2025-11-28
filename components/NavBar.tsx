@@ -1,37 +1,49 @@
 "use client";
 
-import { BellIcon, Menu} from "lucide-react";
-import { Suspense } from "react";
+import { Menu} from "lucide-react";
+import { Suspense, useEffect, useState } from "react";
 import { AuthButton } from "./auth-button";
 import { Button } from "./ui/button";
 import { ThemeSwitcher } from "./theme-switcher";
+import NotificationList from "./notification-list";
+import { createClient } from "@/lib/supabase/client";
+import type { User } from "@supabase/supabase-js";
 
 interface NavbarProps {
   onMenuClick: () => void;
 }
 
 export default function Navbar({ onMenuClick }: NavbarProps) {
+  const [user, setUser] = useState<User | null>(null);
+  const supabase = createClient();
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      const { data: { user }, } = await supabase.auth.getUser();
+      setUser(user);
+    };
+
+    fetchUser();
+  }, [supabase]);
+
   return (
-    <header className="h-16 shadow flex items-center justify-between px-4 lg:px-6 border-b gap-2">
+    <header className="bg-white h-16 shadow flex items-center justify-between px-4 lg:px-6">
       <Button
         className="lg:hidden text-2xl"
         onClick={onMenuClick}
         size={'icon'}
       >
-        <Menu className="h-4 w-4"/>
+        <Menu className="h-5 w-5"/>
       </Button>
 
       <div className="flex-1"></div>
 
-      <button className="relative mr-4">
-        <BellIcon className="h-4 w-4" />
-        <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />
-      </button>
+      {user && <NotificationList userId={user.id} />}
 
-      <ThemeSwitcher />
       <Suspense>
         <AuthButton />
       </Suspense>
+      <ThemeSwitcher />
     </header>
   );
 }

@@ -16,26 +16,26 @@ export default function AdminRequestList({ requetes }: AdminRequestListProps) {
   const router = useRouter();
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
-  const [selectedRequest, setSelectedRequest] = useState<Requete | null>(null);
+  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
 
   const onViewRequest = (request: Requete) => {
-    setSelectedRequest(request);
+    setSelectedRequestId(request.id);
     setIsViewModalOpen(true);
   };
 
   const onUpdateRequest = (request: Requete) => {
-    setSelectedRequest(request);
+    setSelectedRequestId(request.id);
     setIsUpdateModalOpen(true);
   };
 
   const closeViewModal = () => {
     setIsViewModalOpen(false);
-    setSelectedRequest(null);
+    setSelectedRequestId(null);
   };
 
   const closeUpdateModal = () => {
     setIsUpdateModalOpen(false);
-    setSelectedRequest(null);
+    setSelectedRequestId(null);
   };
 
   const onUpdateSuccess = () => {
@@ -52,13 +52,13 @@ export default function AdminRequestList({ requetes }: AdminRequestListProps) {
       />
 
       <ViewRequestModal
-        request={selectedRequest}
+        requestId={selectedRequestId}
         isOpen={isViewModalOpen}
         onClose={closeViewModal}
       />
 
       <UpdateRequestModal
-        request={selectedRequest}
+        request={requetes.find(r => r.id === selectedRequestId) || null}
         isOpen={isUpdateModalOpen}
         onClose={closeUpdateModal}
         onUpdateSuccess={onUpdateSuccess}

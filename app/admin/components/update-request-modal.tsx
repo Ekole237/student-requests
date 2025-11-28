@@ -24,35 +24,60 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import AuditLogList from "./audit-log-list";
 
 interface UpdateRequestModalProps {
-  request: Requete | null;
+  requestId: string | null;
   isOpen: boolean;
   onClose: () => void;
   onUpdateSuccess: () => void;
 }
 
 export default function UpdateRequestModal({
-  request,
+  requestId,
   isOpen,
   onClose,
   onUpdateSuccess,
 }: UpdateRequestModalProps) {
+  const [request, setRequest] = useState<Requete | null>(null);
   const [status, setStatus] = useState<RequestStatus | "">("");
   const [adminComment, setAdminComment] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
+
 
   useEffect(() => {
-    if (request) {
-      setStatus(request.status);
-      setAdminComment(request.admin_comment || "");
+    async function fetchRequestDetails() {
+      if (!requestId) return;
+
+      setIsLoading(true);
+      setError(null);
+      const supabase = createClient();
+
+      const { data, error } = await supabase
+        .from("requetes")
+        .select("*")
+        .eq("id", requestId)
+        .single();
+
+      if (error) {
+        console.error("Error fetching request for update:", error);
+        setError(error.message);
+        setRequest(null);
+      } else {
+        setRequest(data as Requete);
+        setStatus(data.status);
+        setAdminComment(data.admin_comment || "");
+      }
+      setIsLoading(false);
     }
-  }, [request]);
+
+    fetchRequestDetails();
+  }, [requestId]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!request) return;
 
-    setIsLoading(true);
+    setIsUpdating(true);
     setError(null);
     const supabase = createClient();
 
@@ -72,9 +97,37 @@ export default function UpdateRequestModal({
     } catch (error: any) {
       setError(error.message);
     } finally {
-      setIsLoading(false);
+      setIsUpdating(false);
     }
   };
+
+  if (!requestId || !isOpen) return null;
+
+  if (isLoading) {
+    return (
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Loading Request...</DialogTitle>
+          </DialogHeader>
+          <p>Loading request details for update. Please wait.</p>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  if (error) {
+    return (
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Error</DialogTitle>
+          </DialogHeader>
+          <p className="text-red-500">Error loading request: {error}</p>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   if (!request) return null;
 
@@ -122,8 +175,8 @@ export default function UpdateRequestModal({
                 />
               </div>
               {error && <p className="text-sm text-red-500">{error}</p>}
-              <Button type="submit" disabled={isLoading}>
-                {isLoading ? "Updating..." : "Update Request"}
+              <Button type="submit" disabled={isUpdating}>
+                {isUpdating ? "Updating..." : "Update Request"}
               </Button>
             </form>
           </TabsContent>

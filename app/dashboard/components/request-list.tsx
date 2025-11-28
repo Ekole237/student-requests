@@ -16,16 +16,16 @@ interface RequestListProps {
 
 export default function RequestList({ requetes }: RequestListProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedRequest, setSelectedRequest] = useState<Requete | null>(null);
+  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
 
   const onViewRequest = (request: Requete) => {
-    setSelectedRequest(request);
+    setSelectedRequestId(request.id);
     setIsModalOpen(true);
   };
 
   const closeModal = () => {
     setIsModalOpen(false);
-    setSelectedRequest(null);
+    setSelectedRequestId(null);
   };
 
   return (
@@ -54,7 +54,7 @@ export default function RequestList({ requetes }: RequestListProps) {
       )}
 
       <ViewRequestModal
-        request={selectedRequest}
+        requestId={selectedRequestId}
         isOpen={isModalOpen}
         onClose={closeModal}
       />

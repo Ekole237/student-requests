@@ -22,7 +22,8 @@ export async function createClient() {
             cookiesToSet.forEach(({ name, value, options }) =>
               cookieStore.set(name, value, options),
             );
-          } catch {
+          } catch (e) {
+            console.warn("WARN: Supabase setAll cookies failed, likely called from a Server Component. Error:", e);
             // The `setAll` method was called from a Server Component.
             // This can be ignored if you have proxy refreshing
             // user sessions.

@@ -38,10 +38,13 @@ export default function UpdateRequestModal({
 }: UpdateRequestModalProps) {
   const [request, setRequest] = useState<Requete | null>(null);
   const [status, setStatus] = useState<RequestStatus | "">("");
+  const [priority, setPriority] = useState<Requete['priority'] | "">(""); // Added
+  const [assignedTo, setAssignedTo] = useState<string | null>(null); // Added
   const [adminComment, setAdminComment] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [possibleAssignees, setPossibleAssignees] = useState<{ id: string; first_name: string; last_name: string }[]>([]); // Added
 
 
   useEffect(() => {
@@ -66,12 +69,54 @@ export default function UpdateRequestModal({
         setRequest(data as Requete);
         setStatus(data.status);
         setAdminComment(data.admin_comment || "");
+        setPriority(data.priority || "");
+        setAssignedTo(data.assigned_to || null);
       }
       setIsLoading(false);
     }
 
     fetchRequestDetails();
   }, [requestId]);
+
+  // Effect to fetch possible assignees
+  useEffect(() => {
+    async function fetchPossibleAssignees() {
+      const supabase = createClient();
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, first_name, last_name');
+
+      if (profilesError) {
+        console.error("Error fetching profiles:", profilesError);
+        return;
+      }
+
+      const { data: userRolesData, error: userRolesError } = await supabase
+        .from('user_roles')
+        .select('user_id, role');
+
+      if (userRolesError) {
+        console.error("Error fetching user roles:", userRolesError);
+        return;
+      }
+
+      const assignableRoles = ["admin", "department_head", "teacher"];
+      const filteredAssignees = profilesData
+        .filter(profile =>
+          userRolesData.some(
+            role => role.user_id === profile.id && assignableRoles.includes(role.role)
+          )
+        )
+        .map(profile => ({
+          id: profile.id,
+          first_name: profile.first_name || '',
+          last_name: profile.last_name || '',
+        }));
+      setPossibleAssignees(filteredAssignees);
+    }
+
+    fetchPossibleAssignees();
+  }, []); // Run once on component mount
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -81,25 +126,40 @@ export default function UpdateRequestModal({
     setError(null);
     const supabase = createClient();
 
-    try {
-      const { error } = await supabase
-        .from("requetes")
-        .update({
-          status: status as RequestStatus,
-          admin_comment: adminComment,
-        })
-        .eq("id", request.id);
-
-      if (error) throw error;
-
-      onUpdateSuccess();
-      onClose();
-    } catch (error: any) {
-      setError(error.message);
-    } finally {
-      setIsUpdating(false);
-    }
-  };
+          try {
+            let updatePayload: any = {
+              status: status as RequestStatus,
+              priority: priority as Requete['priority'],
+              assigned_to: assignedTo,
+              admin_comment: adminComment,
+            };
+    
+            // Set resolved_at and resolved_by if status becomes 'completed'
+            if (status === "completed" && request.status !== "completed") {
+              updatePayload.resolved_at = new Date().toISOString();
+              const { data: { user }, error: userError } = await supabase.auth.getUser();
+              if (userError) throw userError;
+              updatePayload.resolved_by = user?.id || null;
+            } else if (status !== "completed" && request.status === "completed") {
+              // Clear resolved_at and resolved_by if status changes from 'completed'
+              updatePayload.resolved_at = null;
+              updatePayload.resolved_by = null;
+            }
+    
+            const { error } = await supabase
+              .from("requetes")
+              .update(updatePayload)
+              .eq("id", request.id);
+    
+            if (error) throw error;
+    
+            onUpdateSuccess();
+            onClose();
+          } catch (error: any) {
+            setError(error.message);
+          } finally {
+            setIsUpdating(false);
+          }  };
 
   if (!requestId || !isOpen) return null;
 
@@ -137,7 +197,7 @@ export default function UpdateRequestModal({
         <DialogHeader>
           <DialogTitle>Update Request: {request.title}</DialogTitle>
           <DialogDescription>
-            Modify the status and add comments for this request.
+            Modify the status, priority, assignee, and add comments for this request.
           </DialogDescription>
         </DialogHeader>
 
@@ -165,6 +225,45 @@ export default function UpdateRequestModal({
                   </SelectContent>
                 </Select>
               </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="priority">Priority</Label>
+                <Select
+                  value={priority}
+                  onValueChange={(value: Requete['priority']) => setPriority(value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select priority" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="normal">Normal</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="urgent">Urgent</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="assignedTo">Assign To</Label>
+                <Select
+                  value={assignedTo || "unassigned_id"}
+                  onValueChange={(value: string) => setAssignedTo(value === "unassigned_id" ? null : value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select assignee" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unassigned_id">Unassigned</SelectItem>
+                    {possibleAssignees.map((assignee) => (
+                      <SelectItem key={assignee.id} value={assignee.id}>
+                        {assignee.first_name} {assignee.last_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="grid gap-2">
                 <Label htmlFor="adminComment">Admin Comment</Label>
                 <Textarea

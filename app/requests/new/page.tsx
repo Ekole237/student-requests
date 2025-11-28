@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/select";
 import { RequestType, RequestTypeEnum } from "@/lib/types";
 import { useRouter } from "next/navigation";
-import { CheckIcon, UploadIcon, XIcon } from "lucide-react";
+import {  UploadIcon, XIcon } from "lucide-react";
 import { z } from "zod";
 
 // Zod schema for file validation

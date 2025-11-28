@@ -45,6 +45,15 @@ export interface Student {
   updated_at: string;
 }
 
+export interface Teacher {
+  id: string;
+  user_id: string;
+  specialization: string | null;
+  office_number: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Department {
   id: string;
   name: string;

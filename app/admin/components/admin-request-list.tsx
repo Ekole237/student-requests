@@ -58,7 +58,7 @@ export default function AdminRequestList({ requetes }: AdminRequestListProps) {
       />
 
       <UpdateRequestModal
-        request={requetes.find(r => r.id === selectedRequestId) || null}
+        requestId={selectedRequestId}
         isOpen={isUpdateModalOpen}
         onClose={closeUpdateModal}
         onUpdateSuccess={onUpdateSuccess}

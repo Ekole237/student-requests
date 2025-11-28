@@ -10,6 +10,7 @@ import {
   Users,
   Building2,
   List,
+  User, // Imported User icon
 } from "lucide-react";
 
 interface NavItem {
@@ -39,6 +40,11 @@ export default function SideNavigation({
   };
 
   const navItems: NavItem[] = [
+    {
+      name: "My Profile",
+      href: "/dashboard/profile",
+      icon: <User size={18} />,
+    },
     {
       name: "Mes Requêtes",
       href: "/dashboard",

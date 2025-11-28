@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import clsx from "clsx";
+import { usePathname } from "next/navigation";
 
 interface SideNavigationProps {
   open: boolean;
@@ -14,6 +15,10 @@ export default function SideNavigation({
   onClose,
   isAdmin,
 }: SideNavigationProps) {
+  const pathname = usePathname();
+
+  const isLinkActive = (href: string) => pathname === href;
+
   return (
     <aside
       className={clsx(
@@ -31,11 +36,21 @@ export default function SideNavigation({
         <h2 className="hidden lg:block text-2xl font-bold mb-6">Dashboard</h2>
 
         <nav className="flex flex-col gap-2">
-          <Link href="/dashboard" className="nav-item">
+          <Link
+            href="/dashboard"
+            className={clsx("nav-item", {
+              "bg-gray-200": isLinkActive("/dashboard"),
+            })}
+          >
             Mes Requêtes
           </Link>
           {isAdmin && (
-            <Link href="/admin" className="nav-item">
+            <Link
+              href="/admin"
+              className={clsx("nav-item", {
+                "bg-gray-200": isLinkActive("/admin"),
+              })}
+            >
               Admin
             </Link>
           )}

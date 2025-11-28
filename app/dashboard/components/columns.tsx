@@ -12,6 +12,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Badge, badgeVariants } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 export const columns = (onViewRequest: (request: Requete) => void): ColumnDef<Requete>[] => [
   {
@@ -21,10 +23,32 @@ export const columns = (onViewRequest: (request: Requete) => void): ColumnDef<Re
   {
     accessorKey: "type",
     header: "Type",
+    cell: ({ row }) => {
+      const type: string = row.getValue("type");
+      return (
+        <span className="capitalize">
+          {type.replace(/_/g, " ")}
+        </span>
+      );
+    },
   },
   {
     accessorKey: "status",
     header: "Status",
+    cell: ({ row }) => {
+      const status: Requete["status"] = row.getValue("status");
+      let variant: Parameters<typeof badgeVariants>[0]["variant"] = "default";
+      if (status === "pending") {
+        variant = "secondary";
+      } else if (status === "in_progress") {
+        variant = "default";
+      } else if (status === "completed") {
+        variant = "default";
+      } else if (status === "rejected") {
+        variant = "destructive";
+      }
+      return <Badge variant={variant}>{status.replace(/_/g, " ")}</Badge>;
+    },
   },
   {
     accessorKey: "created_at",

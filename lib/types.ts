@@ -39,3 +39,13 @@ export interface Requete {
   created_at: string;
   updated_at: string;
 }
+
+export interface AuditLog {
+  id: string;
+  request_id: string;
+  user_id: string | null;
+  action: string;
+  old_value: any | null;
+  new_value: any | null;
+  created_at: string;
+}

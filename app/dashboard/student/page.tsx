@@ -8,6 +8,9 @@ import Link from "next/link";
 
 import RequestsList from "./components/requests-list";
 
+// Force dynamic rendering to prevent pre-rendering issues with Supabase
+export const dynamic = 'force-dynamic';
+
 export default async function StudentDashboardPage() {
   const supabase = await createClient();
 

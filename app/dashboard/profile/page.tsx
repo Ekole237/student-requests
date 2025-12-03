@@ -10,6 +10,9 @@ import ProfileDetailsForm from "./profile-details-form";
 import ProfileForm from "./profile-form";
 import TeacherProfileForm from "./teacher-profile-form";
 
+// Force dynamic rendering to prevent pre-rendering issues with Supabase
+export const dynamic = 'force-dynamic';
+
 export default async function ProfilePage() {
   const supabase = await createClient();
 

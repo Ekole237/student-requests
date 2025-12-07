@@ -1,20 +1,45 @@
-import { updateSession } from "@/lib/supabase/proxy";
-import { type NextRequest } from "next/server";
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 
 export async function proxy(request: NextRequest) {
-  return await updateSession(request);
+  const token = request.cookies.get('auth_token')?.value;
+
+  // Public routes
+  if (request.nextUrl.pathname.startsWith('/auth')) {
+    return NextResponse.next();
+  }
+
+  // Protected routes
+  if (!token) {
+    return NextResponse.redirect(new URL('/auth/login', request.url));
+  }
+
+  try {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_AUTH_URL}/api/verify`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const redirectResponse = NextResponse.redirect(new URL('/auth/login', request.url));
+      redirectResponse.cookies.delete('auth_token');
+      return redirectResponse;
+    }
+
+    return NextResponse.next();
+  } catch (error) {
+    return NextResponse.redirect(new URL('/auth/login', request.url));
+  }
 }
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - images - .svg, .png, .jpg, .jpeg, .gif, .webp
-     * Feel free to modify this pattern to include more paths.
-     */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    '/dashboard/:path*',
+    '/admin/:path*',
+    '/profile/:path*',
+    '/requests/:path*',
+    '/my-queue/:path*',
   ],
 };

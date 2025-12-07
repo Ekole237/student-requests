@@ -1,10 +1,18 @@
 import { createClient } from "@/lib/supabase/server";
 import type { Requete } from "@/lib/types";
 import RequestsDataTable from "./components/requests-data-table";
+import { getUser } from "@/lib/auth";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
 export default async function Dashboard() {
+  const user = await getUser();
+
+  if (!user) {
+    redirect("/auth/login");
+  }
+
   const supabase = await createClient();
   const { data: requetes, error } = await supabase
     .from("requetes")

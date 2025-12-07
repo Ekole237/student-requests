@@ -1,82 +1,40 @@
-import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import type { Student, Teacher, Profile } from "@/lib/types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { User, BookOpen, Mail, Phone, MapPin } from "lucide-react";
+import { getUser } from "@/lib/auth";
 
 import ProfileDetailsForm from "./profile-details-form";
 import ProfileForm from "./profile-form";
 import TeacherProfileForm from "./teacher-profile-form";
 
-// Force dynamic rendering to prevent pre-rendering issues with Supabase
+// Force dynamic rendering to prevent pre-rendering issues
 export const dynamic = 'force-dynamic';
 
 export default async function ProfilePage() {
-  const supabase = await createClient();
+  const user = await getUser();
 
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-
-  if (userError || !user) {
+  if (!user) {
     redirect("/auth/login");
   }
 
-  const { data: profileData, error: profileError } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single();
+  const isStudent = user.role === "etudiant";
+  const isTeacher = user.role === "enseignant";
 
-  if (profileError || !profileData) {
-    console.error("Error fetching profile:", profileError);
-    return <p>Error loading profile.</p>;
-  }
+  const profileData = {
+    first_name: user.firstName,
+    last_name: user.lastName,
+    email: user.email,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    is_active: true,
+  };
 
-  const { data: userRolesData, error: userRolesError } = await supabase
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", user.id);
-
-  if (userRolesError) {
-    console.error("Error fetching user roles:", userRolesError);
-    return <p>Error loading user roles.</p>;
-  }
-
-  const roles = userRolesData?.map((ur) => ur.role) || [];
-  const isStudent = roles.includes("student");
-  const isTeacher = roles.includes("teacher");
-
+  const roles = [user.role];
   let studentProfile: Student | null = null;
-  if (isStudent) {
-    const { data: studentData, error: studentError } = await supabase
-      .from("students")
-      .select("*")
-      .eq("user_id", user.id)
-      .single();
-    if (studentError && studentError.code !== 'PGRST116') {
-      console.error("Error fetching student profile:", studentError);
-      return <p>Error loading student profile.</p>;
-    }
-    studentProfile = studentData;
-  }
-
   let teacherProfile: Teacher | null = null;
-  if (isTeacher) {
-    const { data: teacherData, error: teacherError } = await supabase
-      .from("teachers")
-      .select("*")
-      .eq("user_id", user.id)
-      .single();
-    if (teacherError && teacherError.code !== 'PGRST116') {
-      console.error("Error fetching teacher profile:", teacherError);
-      return <p>Error loading teacher profile.</p>;
-    }
-    teacherProfile = teacherData;
-  }
 
   return (
     <div className="min-h-screen bg-background py-8 px-4">

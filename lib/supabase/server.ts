@@ -8,6 +8,9 @@ import { cookies } from "next/headers";
  */
 export async function createClient() {
   const cookieStore = await cookies();
+  
+  // Store the auth_token to protect it from Supabase modifications
+  const authToken = cookieStore.get('auth_token');
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -19,9 +22,14 @@ export async function createClient() {
         },
         setAll(cookiesToSet) {
           try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options),
-            );
+            cookiesToSet.forEach(({ name, value, options }) => {
+              // Protect auth_token from Supabase modifications
+              if (name === 'auth_token' && authToken?.value) {
+                console.log('Supabase tried to modify auth_token, skipping...');
+                return;
+              }
+              cookieStore.set(name, value, options);
+            });
           } catch (e) {
             console.warn("WARN: Supabase setAll cookies failed, likely called from a Server Component. Error:", e);
             // The `setAll` method was called from a Server Component.

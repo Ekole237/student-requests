@@ -1,7 +1,6 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -15,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { login } from "@/app/actions/auth";
 
 export function LoginForm({
   className,
@@ -28,21 +28,27 @@ export function LoginForm({
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const supabase = createClient();
     setIsLoading(true);
     setError(null);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      if (error) throw error;
-      // Update this route to redirect to an authenticated route. The user already has an active session.
-      router.push("/dashboard");
-    } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : "An error occurred");
-    } finally {
+      const formData = new FormData();
+      formData.append("email", email);
+      formData.append("password", password);
+
+      // Server action will redirect on success
+      await login(formData);
+    } catch (error: any) {
+      // NEXT_REDIRECT errors are expected and handled by Next.js
+      if (error?.digest?.includes('NEXT_REDIRECT')) {
+        return; // Don't show error, let Next.js handle the redirect
+      }
+      
+      if (error instanceof Error) {
+        setError(error.message);
+      } else {
+        setError("An error occurred during login");
+      }
       setIsLoading(false);
     }
   };

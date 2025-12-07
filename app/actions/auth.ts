@@ -7,33 +7,64 @@ export async function login(formData: FormData) {
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
 
+  if (!email || !password) {
+    return { success: false, error: 'Email and password are required' };
+  }
+
   try {
     const response = await fetch(`${process.env.NEXT_PUBLIC_AUTH_URL}/api/auth/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
       },
       body: JSON.stringify({ email, password }),
     });
 
+    console.log('Login response status:', response.status);
+
     if (!response.ok) {
-      return { error: 'Invalid credentials' };
+      const errorBody = await response.text();
+      console.error('Login error response:', errorBody);
+      return { success: false, error: 'Invalid credentials' };
     }
 
-    const { token } = await response.json();
+    const responseData = await response.json();
+    console.log('Login response data received');
+    console.log('Full response data:', JSON.stringify(responseData, null, 2));
+
+    const token = responseData.token;
+    
+    console.log('Token length:', token?.length || 0);
+    console.log('Token type:', typeof token);
+    
+    if (!token) {
+      return { success: false, error: 'No token in response' };
+    }
+
+    console.log('Token received, saving to cookies...');
 
     const cookieStore = await cookies();
+    
+    // Set auth_token cookie with proper security options
     cookieStore.set('auth_token', token, {
-      httpOnly: true,
+      httpOnly: true,  // Secure: not accessible from JS
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 7, // 7 days
+      sameSite: 'strict',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 7, // 7 days in seconds
     });
 
-    redirect('/dashboard');
+    console.log('Cookie set successfully');
+    
+    // Verify cookie was set
+    const savedToken = cookieStore.get('auth_token');
+    console.log('Cookie verified:', !!savedToken?.value);
+    
+    return { success: true, redirectUrl: '/dashboard' };
   } catch (error) {
     console.error('Login failed:', error);
-    return { error: 'Login failed' };
+    return { success: false, error: 'Login failed' };
   }
 }
 
@@ -47,6 +78,7 @@ export async function logout() {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
         },
       });
     } catch (error) {

@@ -4,6 +4,7 @@ import Link from "next/link";
 import clsx from "clsx";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import type { AppRole } from "@/lib/types";
 import {
   ChevronRight,
   LayoutDashboard,
@@ -27,7 +28,7 @@ interface SideNavigationProps {
   open: boolean;
   onClose: () => void;
   isAdmin: boolean;
-  userRole?: "student" | "teacher" | "rp" | "director" | "admin";
+  userRole?: AppRole;
 }
 
 export default function SideNavigation({
@@ -68,7 +69,7 @@ export default function SideNavigation({
           },
         ]
       : []),
-    ...(userRole === "teacher" || userRole === "rp" || userRole === "director"
+    ...(userRole === "teacher" || userRole === "department_head"
       ? [
           {
             name: "Ma Queue de Traitement",

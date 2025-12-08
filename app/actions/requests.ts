@@ -9,6 +9,7 @@ export interface CreateRequestPayload {
   description: string;
   gradeType?: string | null;
   subcategory?: string | null;
+  routed_to?: string;             // ID du destinataire (enseignant/RP)
 }
 
 /**
@@ -73,16 +74,28 @@ export async function createRequest(payload: CreateRequestPayload) {
       console.log('[REQUEST] Title modified with subcategory:', finalTitle);
     }
 
+    // ✅ NOUVEAU: Déterminer si auto-validation (CC/SN seulement)
+    const isAutoValidated = 
+      payload.type === 'grade_inquiry' && 
+      (payload.gradeType === 'CC' || payload.gradeType === 'SN');
+    
+    console.log('[REQUEST] Auto-validation check:', {
+      type: payload.type,
+      gradeType: payload.gradeType,
+      isAutoValidated,
+    });
+
     const requestData = {
       created_by: user.id.toString(),
       request_type: payload.type,
       title: finalTitle,
       description: payload.description,
       department_code: user.departement?.code || 'N/A',
-      status: 'submitted',
-      validation_status: 'pending',
+      status: isAutoValidated ? 'validated' : 'submitted',        // ✅ Nouveau
+      validation_status: isAutoValidated ? 'validated' : 'pending', // ✅ Nouveau
       grade_type: payload.gradeType || null,
       priority: 'normal',
+      routed_to: payload.routed_to || null,                      // ✅ Nouveau - ID du destinataire
     };
 
     console.log('[REQUEST] Inserting request with data:', {
@@ -121,13 +134,17 @@ export async function createRequest(payload: CreateRequestPayload) {
     // Create notification for student
     console.log('[REQUEST] Creating notification...');
     try {
+      const notificationMessage = isAutoValidated
+        ? `Votre requête "${finalTitle}" a été envoyée directement au destinataire.`
+        : `Votre requête "${finalTitle}" a été soumise et sera vérifiée par l'administration.`;
+
       const { data: notification, error: notificationError } = await supabase
         .from('notifications')
         .insert({
           user_id: user.id.toString(),
           requete_id: request.id,
-          title: 'Requête soumise',
-          message: `Votre requête "${payload.title}" a été soumise avec succès et sera vérifiée par l'administration.`,
+          title: isAutoValidated ? 'Requête envoyée' : 'Requête soumise',
+          message: notificationMessage,
           type: 'request_created',
           read: false,
         })
@@ -144,6 +161,31 @@ export async function createRequest(payload: CreateRequestPayload) {
     } catch (notificationError) {
       console.error('[REQUEST] ⚠️  Notification creation error:', notificationError);
       // Don't fail the whole operation if notification fails
+    }
+
+    // ✅ NOUVEAU: Créer notification IMMÉDIATE pour enseignant/RP si auto-validé
+    if (isAutoValidated && payload.routed_to) {
+      console.log('[REQUEST] Creating notification for destinataire (auto-validated)...');
+      try {
+        const { error: destNotificationError } = await supabase
+          .from('notifications')
+          .insert({
+            user_id: payload.routed_to,
+            requete_id: request.id,
+            title: 'Nouvelle requête à traiter',
+            message: `Une nouvelle requête de demande de note "${finalTitle}" vous a été assignée.`,
+            type: 'request_assigned',
+            read: false,
+          });
+
+        if (destNotificationError) {
+          console.warn('[REQUEST] ⚠️  Failed to create destinataire notification:', destNotificationError);
+        } else {
+          console.log('✅ [REQUEST] Destinataire notification created');
+        }
+      } catch (err) {
+        console.error('[REQUEST] ⚠️  Destinataire notification error:', err);
+      }
     }
 
     const createDuration = Date.now() - createStartTime;

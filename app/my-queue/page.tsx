@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { getUser } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -12,31 +13,17 @@ export const dynamic = "force-dynamic";
 export default async function MyQueuePage() {
   const supabase = await createClient();
 
-  // Check authentication
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
+  // Check authentication with Adonis
+  const user = await getUser();
 
-  if (userError || !user) {
+  if (!user) {
     redirect("/auth/login");
   }
 
-  // Get user roles
-  const { data: userRoles, error: rolesError } = await supabase
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", user.id);
-
-  if (rolesError || !userRoles || userRoles.length === 0) {
-    redirect("/dashboard");
-  }
-
   // Check if user has treatment role
-  const userRole = userRoles[0]?.role;
-  const validRoles = ["teacher", "department_head", "director", "member"];
+  const validRoles = ["enseignant", "responsable_pedagogique", "directeur", "member"];
 
-  if (!validRoles.includes(userRole)) {
+  if (!validRoles.includes(user.role?.name || "")) {
     redirect("/dashboard");
   }
 
@@ -44,7 +31,7 @@ export default async function MyQueuePage() {
   const { data: requests, error: requestsError } = await supabase
     .from("requetes")
     .select("*")
-    .eq("routed_to_id", user.id)
+    .eq("routed_to", user.id.toString())
     .eq("status", "validated")
     .order("created_at", { ascending: false });
 
@@ -59,12 +46,12 @@ export default async function MyQueuePage() {
 
   const getRoleLabel = () => {
     const labels: Record<string, string> = {
-      teacher: "👨‍🏫 Enseignant",
-      department_head: "📊 Responsable Pédagogique",
-      director: "👔 Directeur",
+      enseignant: "👨‍🏫 Enseignant",
+      responsable_pedagogique: "📊 Responsable Pédagogique",
+      directeur: "👔 Directeur",
       member: "👤 Membre",
     };
-    return labels[userRole] || userRole;
+    return labels[user.role?.name || ""] || user.role?.name || "Utilisateur";
   };
 
   return (

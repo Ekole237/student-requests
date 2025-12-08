@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createRequest, uploadRequestFiles } from "@/app/actions/requests";
+import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,8 +43,16 @@ const fileSchema = z.instanceof(File).refine((file) => file.size <= MAX_FILE_SIZ
 
 type SubcategoryType = "missing" | "error" | "other" | null;
 
+interface User {
+  id: string;
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+}
+
 export default function NewRequest() {
   const router = useRouter();
+  const supabase = createClient();
   const { hasPermission } = useUserStore();
 
   // Initialize all hooks at the top level
@@ -53,12 +62,68 @@ export default function NewRequest() {
     subcategory: null as SubcategoryType,
     title: "",
     description: "",
+    routed_to: "",             // ✅ NOUVEAU: ID du destinataire
   });
 
   const [files, setFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [descriptionLineCount, setDescriptionLineCount] = useState(0);
+  
+  // ✅ NOUVEAU: Listes d'utilisateurs
+  const [teachers, setTeachers] = useState<User[]>([]);
+  const [responsablePedagogiques, setResponsablePedagogiques] = useState<User[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+
+  // ✅ NOUVEAU: Charger les enseignants et RP au montage
+  useEffect(() => {
+    const loadUsers = async () => {
+      setLoadingUsers(true);
+      try {
+        // Charger enseignants
+        const { data: teacherRoles, error: teacherError } = await supabase
+          .from("user_roles")
+          .select("user_id, profiles(id, email, first_name, last_name)")
+          .eq("role", "teacher");
+
+        if (!teacherError && teacherRoles) {
+          const teacherList = teacherRoles
+            .filter((ur: any) => ur.profiles)
+            .map((ur: any) => ({
+              id: ur.user_id,
+              email: ur.profiles.email,
+              first_name: ur.profiles.first_name,
+              last_name: ur.profiles.last_name,
+            }));
+          setTeachers(teacherList);
+        }
+
+        // Charger responsables pédagogiques
+        const { data: rpRoles, error: rpError } = await supabase
+          .from("user_roles")
+          .select("user_id, profiles(id, email, first_name, last_name)")
+          .eq("role", "department_head");
+
+        if (!rpError && rpRoles) {
+          const rpList = rpRoles
+            .filter((ur: any) => ur.profiles)
+            .map((ur: any) => ({
+              id: ur.user_id,
+              email: ur.profiles.email,
+              first_name: ur.profiles.first_name,
+              last_name: ur.profiles.last_name,
+            }));
+          setResponsablePedagogiques(rpList);
+        }
+      } catch (err) {
+        console.error("Error loading users:", err);
+      } finally {
+        setLoadingUsers(false);
+      }
+    };
+
+    loadUsers();
+  }, [supabase]);
 
   // Check permission to create request - after all hooks
   if (!hasPermission('requetes:create')) {
@@ -106,6 +171,7 @@ export default function NewRequest() {
       type: value as RequestTypeEnum | "",
       gradeType: null,
       subcategory: null,
+      routed_to: "",            // ✅ NOUVEAU: Reset destinataire
     }));
     setError(null);
   };
@@ -115,6 +181,7 @@ export default function NewRequest() {
       ...prev,
       gradeType: value,
       subcategory: null,
+      routed_to: "",  // Reset la sélection
     }));
   };
 
@@ -190,6 +257,13 @@ export default function NewRequest() {
       return;
     }
 
+    // ✅ NOUVEAU: Vérifier la sélection du destinataire pour les demandes de note
+    if (formData.type === "grade_inquiry" && !formData.routed_to) {
+      const roleLabel = formData.gradeType === "CC" ? "enseignant" : "responsable pédagogique";
+      setError(`Please select an ${roleLabel}`);
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -201,6 +275,7 @@ export default function NewRequest() {
         description: formData.description,
         gradeType: formData.gradeType,
         subcategory: formData.subcategory,
+        routed_to: formData.routed_to,             // ✅ NOUVEAU
       });
 
       if (!result.success) {
@@ -215,12 +290,12 @@ export default function NewRequest() {
       // Upload files if any
       if (files.length > 0) {
         console.log('Uploading', files.length, 'files...');
-        const formData = new FormData();
+        const formDataFile = new FormData();
         files.forEach((file) => {
-          formData.append('files', file);
+          formDataFile.append('files', file);
         });
 
-        const uploadResult = await uploadRequestFiles(requestId, formData);
+        const uploadResult = await uploadRequestFiles(requestId, formDataFile);
         
         if (!uploadResult.success) {
           console.warn('File upload warning:', uploadResult.error);
@@ -362,6 +437,56 @@ export default function NewRequest() {
                       </SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+              )}
+
+              {/* ✅ NOUVEAU: Sélection du destinataire (Enseignant/RP) */}
+              {formData.type === "grade_inquiry" && formData.gradeType && (
+                <div className="space-y-3 p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <Label className="text-base font-semibold text-blue-900 dark:text-blue-200">
+                    {formData.gradeType === "CC" ? "Sélectionnez votre Enseignant *" : "Sélectionnez le Responsable Pédagogique *"}
+                  </Label>
+                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                    {formData.gradeType === "CC" 
+                      ? "Votre requête sera envoyée directement à l'enseignant"
+                      : "Votre requête sera envoyée directement au responsable pédagogique"}
+                  </p>
+                  
+                  {loadingUsers ? (
+                    <div className="text-center py-4">
+                      <p className="text-muted-foreground">Chargement des utilisateurs...</p>
+                    </div>
+                  ) : (
+                    <Select 
+                      value={formData.routed_to || ""} 
+                      onValueChange={(value) => 
+                        setFormData(prev => ({ ...prev, routed_to: value }))
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue 
+                          placeholder={formData.gradeType === "CC" ? "Choisir un enseignant" : "Choisir un responsable pédagogique"} 
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(formData.gradeType === "CC" ? teachers : responsablePedagogiques).map((user) => (
+                          <SelectItem key={user.id} value={user.id}>
+                            {user.first_name} {user.last_name}
+                            {user.email && <span className="text-muted-foreground text-xs"> ({user.email})</span>}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+
+                  {formData.routed_to && (
+                    <Alert className="bg-green-50/50 border-green-200">
+                      <CheckCircle2 className="h-4 w-4 text-green-600" />
+                      <AlertDescription className="text-green-800">
+                        ✅ Votre requête sera envoyée directement au destinataire sélectionné
+                      </AlertDescription>
+                    </Alert>
+                  )}
                 </div>
               )}
 

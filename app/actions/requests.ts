@@ -16,31 +16,50 @@ export interface CreateRequestPayload {
  * Uses Adonis authentication, not Supabase Auth
  */
 export async function createRequest(payload: CreateRequestPayload) {
+  const createStartTime = Date.now();
+  console.log('[REQUEST] Starting request creation...');
+  
   try {
     // Get authenticated user from Adonis
+    console.log('[REQUEST] Fetching authenticated user...');
     const user = await getUser();
     
     if (!user) {
+      console.error('[REQUEST] ❌ User not authenticated');
       return {
         success: false,
         error: 'User not authenticated',
       };
     }
 
-    console.log('Creating request for user:', user.email, 'ID:', user.id);
+    console.log('[REQUEST] ✅ User authenticated:', {
+      id: user.id,
+      email: user.email,
+      role: user.role?.name,
+    });
 
     // Validate input
     if (!payload.type) {
+      console.error('[REQUEST] ❌ Request type is required');
       return { success: false, error: 'Request type is required' };
     }
     if (!payload.title?.trim()) {
+      console.error('[REQUEST] ❌ Title is required');
       return { success: false, error: 'Title is required' };
     }
     if (!payload.description?.trim()) {
+      console.error('[REQUEST] ❌ Description is required');
       return { success: false, error: 'Description is required' };
     }
 
+    console.log('[REQUEST] ✅ Validation passed:', {
+      type: payload.type,
+      title: payload.title,
+      hasDescription: !!payload.description,
+    });
+
     // Get Supabase client for server-side operations
+    console.log('[REQUEST] Creating Supabase client...');
     const supabase = await createClient();
 
     // Build title with subcategory if applicable
@@ -51,55 +70,92 @@ export async function createRequest(payload: CreateRequestPayload) {
         error: 'Erreur de note',
       };
       finalTitle = `${payload.title} (${subcategoryLabels[payload.subcategory] || payload.subcategory})`;
+      console.log('[REQUEST] Title modified with subcategory:', finalTitle);
     }
+
+    const requestData = {
+      created_by: user.id.toString(),
+      request_type: payload.type,
+      title: finalTitle,
+      description: payload.description,
+      department_code: user.departement?.code || 'N/A',
+      status: 'submitted',
+      validation_status: 'pending',
+      grade_type: payload.gradeType || null,
+      priority: 'normal',
+    };
+
+    console.log('[REQUEST] Inserting request with data:', {
+      created_by: requestData.created_by,
+      request_type: requestData.request_type,
+      title: requestData.title,
+      department_code: requestData.department_code,
+      status: requestData.status,
+    });
 
     // Create request in Supabase with Adonis user ID
     const { data: request, error: requestError } = await supabase
       .from('requetes')
-      .insert({
-        student_id: user.id.toString(), // Use Adonis user ID as string
-        type: payload.type,
-        title: finalTitle,
-        description: payload.description,
-        status: 'submitted',
-        validation_status: 'pending',
-        grade_type: payload.gradeType || null,
-        priority: 'normal',
-      })
+      .insert(requestData)
       .select()
       .single();
 
     if (requestError) {
-      console.error('Error creating request:', requestError);
+      console.error('[REQUEST] ❌ Error creating request:', {
+        message: requestError.message,
+        code: requestError.code,
+        details: requestError.details,
+      });
       return {
         success: false,
         error: requestError.message || 'Failed to create request',
       };
     }
 
-    console.log('✅ Request created:', request.id);
+    console.log('✅ [REQUEST] Request created successfully:', {
+      id: request.id,
+      request_type: request.request_type,
+      createdBy: request.created_by,
+    });
 
     // Create notification for student
+    console.log('[REQUEST] Creating notification...');
     try {
-      await supabase.from('notifications').insert({
-        user_id: user.id.toString(),
-        request_id: request.id,
-        title: 'Requête soumise',
-        message: `Votre requête "${payload.title}" a été soumise avec succès et sera vérifiée par l'administration.`,
-        type: 'request_created',
-      });
-      console.log('✅ Notification created');
+      const { data: notification, error: notificationError } = await supabase
+        .from('notifications')
+        .insert({
+          user_id: user.id.toString(),
+          requete_id: request.id,
+          title: 'Requête soumise',
+          message: `Votre requête "${payload.title}" a été soumise avec succès et sera vérifiée par l'administration.`,
+          type: 'request_created',
+          read: false,
+        })
+        .select();
+
+      if (notificationError) {
+        console.warn('[REQUEST] ⚠️  Failed to create notification:', {
+          message: notificationError.message,
+          code: notificationError.code,
+        });
+      } else {
+        console.log('✅ [REQUEST] Notification created');
+      }
     } catch (notificationError) {
-      console.error('Failed to create notification:', notificationError);
+      console.error('[REQUEST] ⚠️  Notification creation error:', notificationError);
       // Don't fail the whole operation if notification fails
     }
+
+    const createDuration = Date.now() - createStartTime;
+    console.log(`✅ [REQUEST] Request creation completed in ${createDuration}ms`);
 
     return {
       success: true,
       data: request,
     };
   } catch (error) {
-    console.error('Error in createRequest:', error);
+    const createDuration = Date.now() - createStartTime;
+    console.error(`[REQUEST] ❌ Error in createRequest (${createDuration}ms):`, error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'An error occurred',

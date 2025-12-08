@@ -1,19 +1,14 @@
-interface User {
-  id: number;
-  matricule: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  role: {
-    name: string;
+import type { User, VerifyTokenResponse, LoginResponse } from './backend-types';
+
+export interface VerifyResponse {
+  valid: boolean;
+  user: {
+    id: number;
+    matricule: string;
+    email: string;
+    role: string;
     permissions: string[];
   };
-  departement?: string;
-}
-
-interface VerifyResponse {
-  valid: boolean;
-  user: User;
 }
 
 export async function verifyToken(token: string): Promise<VerifyResponse | null> {
@@ -80,5 +75,33 @@ export async function getUser(): Promise<User | null> {
   }
 
   console.log('getUser() - user authenticated:', result.user.email);
-  return result.user;
+  
+  // Return simplified user for now, in real app would fetch full user data
+  return {
+    id: result.user.id,
+    matricule: result.user.matricule,
+    email: result.user.email,
+    firstName: '',
+    lastName: '',
+    personalEmail: null,
+    emailVerifiedAt: null,
+    roleId: 0,
+    departementId: null,
+    promotionId: null,
+    phone: null,
+    photoUrl: null,
+    twoFactorEnabled: false,
+    isActive: true,
+    lastLogin: null,
+    lastIp: null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    role: {
+      id: 0,
+      name: result.user.role as any,
+      permissions: result.user.permissions,
+      createdAt: new Date().toISOString(),
+    },
+    departement: null,
+  };
 }

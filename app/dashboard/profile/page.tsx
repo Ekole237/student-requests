@@ -3,11 +3,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { User, Mail } from "lucide-react";
 import { getUser } from "@/lib/auth";
+import type { User as AuthUser } from "@/lib/backend-types";
 
 export const dynamic = 'force-dynamic';
 
 export default async function ProfilePage() {
-  const user = await getUser();
+  const user = await getUser() as AuthUser | null;
 
   if (!user) {
     redirect("/auth/login");

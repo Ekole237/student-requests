@@ -6,6 +6,7 @@ interface UserState {
   isAdmin: boolean;
   userName: string | null;
   userEmail: string | null;
+  userMatricule: string | null;
   fetchUserRole: () => Promise<void>;
 }
 
@@ -14,6 +15,7 @@ export const useUserStore = create<UserState>((set) => ({
   isAdmin: false,
   userName: null,
   userEmail: null,
+  userMatricule: null,
   fetchUserRole: async () => {
     try {
       // Fetch user info from the verify endpoint using the token from cookies
@@ -27,7 +29,13 @@ export const useUserStore = create<UserState>((set) => ({
       });
 
       if (!response.ok) {
-        set({ userRole: null, isAdmin: false, userName: null, userEmail: null });
+        set({ 
+          userRole: null, 
+          isAdmin: false, 
+          userName: null, 
+          userEmail: null,
+          userMatricule: null 
+        });
         return;
       }
 
@@ -35,7 +43,7 @@ export const useUserStore = create<UserState>((set) => ({
 
       if (result?.valid && result.user) {
         const user = result.user;
-        const roleName = user.role?.name || "student";
+        const roleName = user.role || "etudiant";
         const isAdmin = roleName === "admin";
         const roleMap: Record<string, AppRole> = {
           etudiant: "student",
@@ -50,15 +58,30 @@ export const useUserStore = create<UserState>((set) => ({
         set({
           userRole: appRole,
           isAdmin,
-          userName: `${user.firstName} ${user.lastName}`,
+          userName: user.firstName && user.lastName 
+            ? `${user.firstName} ${user.lastName}` 
+            : user.email,
           userEmail: user.email,
+          userMatricule: user.matricule,
         });
       } else {
-        set({ userRole: null, isAdmin: false, userName: null, userEmail: null });
+        set({ 
+          userRole: null, 
+          isAdmin: false, 
+          userName: null, 
+          userEmail: null,
+          userMatricule: null 
+        });
       }
     } catch (error) {
       console.error("Error fetching user role:", error);
-      set({ userRole: null, isAdmin: false, userName: null, userEmail: null });
+      set({ 
+        userRole: null, 
+        isAdmin: false, 
+        userName: null, 
+        userEmail: null,
+        userMatricule: null 
+      });
     }
   },
 }));

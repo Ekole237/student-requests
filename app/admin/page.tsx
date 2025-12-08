@@ -14,7 +14,7 @@ export default async function AdminDashboard() {
   }
 
   // Check role from ENSPD API
-  if (user.role.name !== "admin" && user.role.name !== "Admin") {
+  if (user.role.name !== "admin") {
     return redirect("/dashboard");
   }
 

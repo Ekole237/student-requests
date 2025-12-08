@@ -38,13 +38,13 @@ export default function QueueList({ requests, userRole }: QueueListProps) {
       const matchStatus = filterStatus === "all" || req.final_status === filterStatus;
       const matchSearch =
         req.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        req.student_id.toLowerCase().includes(searchTerm.toLowerCase());
+        req.created_by.toLowerCase().includes(searchTerm.toLowerCase());
       return matchStatus && matchSearch;
     })
     .sort((a, b) => {
       if (sortBy === "date_asc") return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
       if (sortBy === "date_desc") return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      return a.type.localeCompare(b.type);
+      return a.request_type.localeCompare(b.request_type);
     });
 
   const handleTreat = (updatedRequest: Requete) => {
@@ -188,7 +188,7 @@ export default function QueueList({ requests, userRole }: QueueListProps) {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 mb-2 flex-wrap">
                       <h3 className="font-semibold truncate text-lg">{request.title}</h3>
-                      <Badge variant="secondary">{getTypeLabel(request.type)}</Badge>
+                      <Badge variant="secondary">{getTypeLabel(request.request_type)}</Badge>
                       {request.final_status === null && (
                         <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100">
                           En attente
@@ -213,7 +213,7 @@ export default function QueueList({ requests, userRole }: QueueListProps) {
                     <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
                       <div>
                         <p className="text-xs">Étudiant</p>
-                        <p className="font-medium text-foreground">{request.student_id}</p>
+                        <p className="font-medium text-foreground">{request.created_by}</p>
                       </div>
                       <div className="flex items-center gap-1">
                         <Clock className="h-4 w-4" />

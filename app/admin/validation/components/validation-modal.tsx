@@ -55,7 +55,7 @@ export default function ValidationModal({
     const { data, error: err } = await supabase
       .from("attachments")
       .select("*")
-      .eq("request_id", request.id);
+      .eq("requete_id", request.id);
 
     if (err) {
       console.error("Error loading attachments:", err);
@@ -110,7 +110,7 @@ export default function ValidationModal({
 
         // Create notification for student
         await supabase.from("notifications").insert({
-          user_id: request.student_id,
+          user_id: request.created_by,
           request_id: request.id,
           title: "Requête rejetée",
           message: `Votre requête "${request.title}" a été rejetée. Motif: ${rejectionReason}`,
@@ -136,7 +136,7 @@ export default function ValidationModal({
 
         // Create notification for student
         await supabase.from("notifications").insert({
-          user_id: request.student_id,
+          user_id: request.created_by,
           request_id: request.id,
           title: "Requête validée",
           message: `Votre requête "${request.title}" a été validée et est en cours de traitement.`,
@@ -192,8 +192,8 @@ export default function ValidationModal({
           <TabsContent value="info" className="space-y-4 mt-4">
             <div className="space-y-3">
               <div>
-                <Label className="text-sm text-muted-foreground">Type</Label>
-                <Badge>{request.type}</Badge>
+                <p className="text-sm text-muted-foreground mb-1">Type</p>
+                <Badge>{request.request_type}</Badge>
               </div>
               <div>
                 <Label className="text-sm text-muted-foreground">Titre</Label>
@@ -211,7 +211,7 @@ export default function ValidationModal({
               )}
               <div className="pt-3 border-t">
                 <Label className="text-sm text-muted-foreground">Étudiant</Label>
-                <p className="font-semibold">{request.student_id}</p>
+                <p className="font-semibold">{request.created_by}</p>
               </div>
               <div>
                 <Label className="text-sm text-muted-foreground">Soumise le</Label>

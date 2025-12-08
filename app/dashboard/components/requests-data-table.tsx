@@ -92,8 +92,8 @@ export default function RequestsDataTable({
                     })}
                   </TableCell>
                   <TableCell className="text-sm">
-                    {RequestType[req.type as keyof typeof RequestType] ||
-                      req.type}
+                    {RequestType[req.request_type as keyof typeof RequestType] ||
+                      req.request_type}
                   </TableCell>
                   <TableCell>
                     <Badge
@@ -173,8 +173,8 @@ export default function RequestsDataTable({
                     Type
                   </p>
                   <p className="text-sm">
-                    {RequestType[selectedRequest.type as keyof typeof RequestType] ||
-                      selectedRequest.type}
+                    {RequestType[selectedRequest.request_type as keyof typeof RequestType] ||
+                      selectedRequest.request_type}
                   </p>
                 </div>
                 <div>

@@ -313,7 +313,7 @@ export async function getRequestDetails(requestId: string) {
       .from('requetes')
       .select('*')
       .eq('id', requestId)
-      .eq('student_id', user.id.toString())
+      .eq('created_by', user.id.toString())
       .single();
 
     if (requestError) {
@@ -327,7 +327,7 @@ export async function getRequestDetails(requestId: string) {
     const { data: attachmentsData, error: attachmentError } = await supabase
       .from('attachments')
       .select('*')
-      .eq('request_id', requestId)
+      .eq('requete_id', requestId)
       .order('created_at', { ascending: false });
 
     if (attachmentError) {

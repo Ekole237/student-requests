@@ -155,7 +155,7 @@ export default function ViewRequestModal({
           <DialogDescription>
             Type:{" "}
             <span className="capitalize">
-              {request.type.replace(/_/g, " ")}
+              {request.request_type.replace(/_/g, " ")}
             </span>{" "}
             | Status: {request.status} | Priority: {request.priority}
           </DialogDescription>
@@ -290,7 +290,7 @@ export default function ViewRequestModal({
                 messages.map((message) => (
                   <div key={message.id} className="border p-2 rounded-md">
                     <p className="text-sm font-semibold">
-                      {message.sender_id === request.student_id ? "Student" : "Admin"} (
+                      {message.sender_id === request.created_by ? "Student" : "Admin"} (
                       {format(new Date(message.created_at), "PPP p")})
                     </p>
                     <p className="text-sm text-gray-700">{message.message}</p>

@@ -21,8 +21,8 @@ interface RequestAttachment {
 
 interface RequestData {
   id: string;
-  student_id: string;
-  type: RequestTypeEnum;
+  created_by: string;
+  request_type: RequestTypeEnum;
   title: string;
   description: string;
   status: RequestStatus;
@@ -32,8 +32,8 @@ interface RequestData {
   priority: string;
   created_at: string;
   updated_at: string;
-  routed_to_id?: string | null;
-  notes?: string | null;
+  routed_to?: string | null;
+  internal_notes?: string | null;
   student_name?: string;
 }
 
@@ -66,11 +66,11 @@ export default function RequestDetailPage() {
         }
 
         // Fetch student name if available
-        if (requestData?.student_id) {
+        if (requestData?.created_by) {
           const { data: studentData } = await supabase
             .from("profiles")
             .select("first_name, last_name")
-            .eq("id", requestData.student_id)
+            .eq("id", requestData.created_by)
             .single();
 
           if (studentData) {
@@ -224,7 +224,7 @@ export default function RequestDetailPage() {
             <div>
               <h3 className="text-sm font-semibold text-muted-foreground">Type</h3>
               <p className="text-base font-medium mt-1">
-                {RequestType[request.type]}
+                {RequestType[request.request_type]}
               </p>
             </div>
 
@@ -253,10 +253,10 @@ export default function RequestDetailPage() {
             <p className="text-base whitespace-pre-wrap">{request.description}</p>
           </div>
 
-          {request.notes && (
+          {request.internal_notes && (
             <div className="border-t pt-4">
-              <h3 className="text-sm font-semibold text-muted-foreground mb-2">Notes</h3>
-              <p className="text-base whitespace-pre-wrap">{request.notes}</p>
+              <h3 className="text-sm font-semibold text-muted-foreground mb-2">Notes internes</h3>
+              <p className="text-base whitespace-pre-wrap">{request.internal_notes}</p>
             </div>
           )}
         </CardContent>

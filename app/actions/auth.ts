@@ -61,6 +61,37 @@ export async function login(formData: FormData) {
     const savedToken = cookieStore.get('auth_token');
     console.log('Cookie verified:', !!savedToken?.value);
     
+    // Sync user to Supabase in the background
+    try {
+      // Fetch the complete user data
+      const userResponse = await fetch(`${process.env.NEXT_PUBLIC_AUTH_URL}/api/verify`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+        },
+      });
+
+      if (userResponse.ok) {
+        const userData = await userResponse.json();
+        
+        // Call Supabase sync endpoint
+        await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/auth/sync-supabase`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          credentials: 'include', // Include cookies
+        });
+        
+        console.log('✅ User synced to Supabase');
+      }
+    } catch (error) {
+      console.error('Failed to sync user to Supabase:', error);
+      // Don't fail login if sync fails
+    }
+    
     return { success: true, redirectUrl: '/dashboard' };
   } catch (error) {
     console.error('Login failed:', error);
@@ -83,9 +114,19 @@ export async function logout() {
       });
     } catch (error) {
       console.error('Logout API call failed:', error);
+      // Continue with logout even if API call fails
     }
   }
 
-  cookieStore.delete('auth_token');
+  // Delete the auth_token cookie by setting maxAge to 0
+  cookieStore.set('auth_token', '', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    path: '/',
+    maxAge: 0, // Immediately expire the cookie
+  });
+
+  console.log('✅ User logged out, redirecting to login...');
   redirect('/auth/login');
 }

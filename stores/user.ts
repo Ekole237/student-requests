@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { AppRole } from "@/lib/types";
+import { getCurrentUser } from "@/app/actions/user";
 
 interface UserState {
   userRole: AppRole | null;
@@ -8,6 +9,7 @@ interface UserState {
   userEmail: string | null;
   userMatricule: string | null;
   fetchUserRole: () => Promise<void>;
+  clearUser: () => void;
 }
 
 export const useUserStore = create<UserState>((set) => ({
@@ -16,34 +18,27 @@ export const useUserStore = create<UserState>((set) => ({
   userName: null,
   userEmail: null,
   userMatricule: null,
+  clearUser: () => {
+    console.log('Clearing user from store');
+    set({
+      userRole: null,
+      isAdmin: false,
+      userName: null,
+      userEmail: null,
+      userMatricule: null,
+    });
+  },
   fetchUserRole: async () => {
     try {
-      // Fetch user info from the verify endpoint using the token from cookies
-      const response = await fetch(`${process.env.NEXT_PUBLIC_AUTH_URL}/api/verify`, {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include', // Include cookies in the request
-      });
+      console.log('fetchUserRole called from client');
+      
+      // Call server action to get user data
+      const user = await getCurrentUser();
+      
+      console.log('User from server action:', user);
 
-      if (!response.ok) {
-        set({ 
-          userRole: null, 
-          isAdmin: false, 
-          userName: null, 
-          userEmail: null,
-          userMatricule: null 
-        });
-        return;
-      }
-
-      const result = await response.json();
-
-      if (result?.valid && result.user) {
-        const user = result.user;
-        const roleName = user.role || "etudiant";
+      if (user && user.email) {
+        const roleName = user.role?.name || "etudiant";
         const isAdmin = roleName === "admin";
         const roleMap: Record<string, AppRole> = {
           etudiant: "student",
@@ -54,17 +49,25 @@ export const useUserStore = create<UserState>((set) => ({
         };
         
         const appRole = (roleMap[roleName] || "student") as AppRole;
+        const fullName = user.firstName && user.lastName 
+          ? `${user.firstName} ${user.lastName}` 
+          : user.email;
+        
+        console.log('User store - setting state:', {
+          email: user.email,
+          fullName,
+          role: appRole,
+        });
         
         set({
           userRole: appRole,
           isAdmin,
-          userName: user.firstName && user.lastName 
-            ? `${user.firstName} ${user.lastName}` 
-            : user.email,
+          userName: fullName,
           userEmail: user.email,
           userMatricule: user.matricule,
         });
       } else {
+        console.log('No user found, clearing state');
         set({ 
           userRole: null, 
           isAdmin: false, 

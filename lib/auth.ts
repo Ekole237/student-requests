@@ -6,6 +6,8 @@ export interface VerifyResponse {
     id: number;
     matricule: string;
     email: string;
+    firstName: string;
+    lastName: string;
     role: string;
     permissions: string[];
   };
@@ -81,8 +83,8 @@ export async function getUser(): Promise<User | null> {
     id: result.user.id,
     matricule: result.user.matricule,
     email: result.user.email,
-    firstName: '',
-    lastName: '',
+    firstName: result.user.firstName || '',
+    lastName: result.user.lastName || '',
     personalEmail: null,
     emailVerifiedAt: null,
     roleId: 0,

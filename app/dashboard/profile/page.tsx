@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { User, Mail, Phone, Calendar, BookOpen, Building2, Key, Clock } from "lucide-react";
+import { User, Mail, Building2, Key } from "lucide-react";
 import { getUser } from "@/lib/auth";
 import type { User as AuthUser } from "@/lib/backend-types";
 
@@ -13,19 +13,6 @@ export default async function ProfilePage() {
   if (!user) {
     redirect("/auth/login");
   }
-
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return "Non défini";
-    try {
-      return new Date(dateString).toLocaleDateString('fr-FR', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      });
-    } catch {
-      return "Date invalide";
-    }
-  };
 
   const getRoleLabel = (roleName: string) => {
     const roleMap: Record<string, { label: string; emoji: string }> = {
@@ -211,70 +198,7 @@ export default async function ProfilePage() {
           )}
         </div>
 
-        {/* Dates Information */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5" />
-              Historique du Compte
-            </CardTitle>
-            <CardDescription>
-              Informations chronologiques
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Créé le</p>
-                <p className="text-sm font-semibold mt-1">
-                  {formatDate(user.createdAt)}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Dernière mise à jour</p>
-                <p className="text-sm font-semibold mt-1">
-                  {formatDate(user.updatedAt)}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Dernier accès</p>
-                <p className="text-sm font-semibold mt-1">
-                  {user.lastLogin ? formatDate(user.lastLogin) : "Jamais connecté"}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Dernier IP</p>
-                <p className="text-sm font-mono font-semibold mt-1">
-                  {user.lastIp || "N/A"}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
 
-        {/* Permissions */}
-        {user.role.permissions && user.role.permissions.length > 0 && (
-          <Card className="mt-6">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Key className="h-5 w-5" />
-                Permissions
-              </CardTitle>
-              <CardDescription>
-                Droits d'accès associés à votre rôle
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-2">
-                {user.role.permissions.map((permission) => (
-                  <Badge key={permission} variant="outline">
-                    {permission}
-                  </Badge>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
       </div>
     </div>
   );

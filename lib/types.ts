@@ -1,5 +1,17 @@
 export type AppRole = "admin" | "student" | "department_head" | "teacher";
 
+export type RequestPlatformPermission =
+  | "requetes:create"
+  | "requetes:view-own"
+  | "requetes:view-routed-to-me"
+  | "requetes:view-department"
+  | "requetes:validate"
+  | "requetes:route"
+  | "requetes:resolve"
+  | "requetes:view-all"
+  | "system:manage"
+  | "*";
+
 export type RequestStatus = "submitted" | "validated" | "assigned" | "processing" | "completed" | "rejected";
 export type ValidationStatus = "pending" | "validated" | "rejected";
 export type FinalStatus = "approved" | "rejected" | null;
@@ -35,6 +47,16 @@ export interface UserRole {
   user_id: string;
   role: AppRole;
   created_at: string;
+}
+
+export interface RequestPlatformRole {
+  id: string;
+  adonis_role: string;
+  name: string;
+  permissions: RequestPlatformPermission[];
+  description: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Student {

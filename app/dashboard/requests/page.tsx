@@ -64,32 +64,78 @@ const getStatusLabel = (status: string) => {
 export default function MyRequestsPage() {
   const [requests, setRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // TODO: Fetch requests from API
-    const mockRequests: Request[] = [
-      {
-        id: '1',
-        type: 'CC_ABSENCE',
-        status: 'SUBMITTED',
-        createdAt: new Date('2024-01-15'),
-        updatedAt: new Date('2024-01-15'),
-        description: 'Absence de note pour le contrôle continu du 10 janvier',
-        student: { firstName: 'Jean', lastName: 'Dupont' },
-      },
-      {
-        id: '2',
-        type: 'SN_ABSENCE',
-        status: 'UNDER_REVIEW',
-        createdAt: new Date('2024-01-20'),
-        updatedAt: new Date('2024-01-22'),
-        description: 'Note manquante pour la session normale',
-        student: { firstName: 'Jean', lastName: 'Dupont' },
-      },
-    ];
-    setRequests(mockRequests);
-    setLoading(false);
+    const fetchRequests = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const response = await fetch('/api/requests', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch requests: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        
+        // Transform Supabase data to Request format
+        const transformedRequests: Request[] = (data.data || []).map((req: any) => ({
+          id: req.id,
+          type: mapRequestType(req.type),
+          status: mapRequestStatus(req.status),
+          createdAt: new Date(req.created_at),
+          updatedAt: new Date(req.updated_at),
+          description: req.description,
+          student: {
+            firstName: req.student_first_name || 'N/A',
+            lastName: req.student_last_name || 'N/A',
+          },
+        }));
+
+        setRequests(transformedRequests);
+      } catch (err) {
+        console.error('Error fetching requests:', err);
+        setError(err instanceof Error ? err.message : 'Unknown error');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchRequests();
   }, []);
+
+  // Helper function to map Supabase request type to UI type
+  const mapRequestType = (type: string): Request['type'] => {
+    const typeMap: Record<string, Request['type']> = {
+      'grade_inquiry': 'CC_ABSENCE',
+      'absence_justification': 'SN_ABSENCE',
+      'certificate_request': 'OTHER',
+      'grade_correction': 'CC_ERROR',
+      'schedule_change': 'OTHER',
+      'other': 'OTHER',
+    };
+    return typeMap[type] || 'OTHER';
+  };
+
+  // Helper function to map Supabase status to UI status
+  const mapRequestStatus = (status: string): Request['status'] => {
+    const statusMap: Record<string, Request['status']> = {
+      'submitted': 'SUBMITTED',
+      'validated': 'UNDER_REVIEW',
+      'assigned': 'UNDER_REVIEW',
+      'processing': 'UNDER_REVIEW',
+      'completed': 'APPROVED',
+      'rejected': 'REJECTED',
+    };
+    return statusMap[status] || 'DRAFT';
+  };
 
   const columns: ColumnDef<Request>[] = [
     {

@@ -18,13 +18,14 @@ function getSupabaseAdmin() {
 
 /**
  * Sync Adonis user to Supabase
- * Creates or updates user record in Supabase
+ * Creates or updates user record in Supabase (both users and profiles tables)
  */
 export async function syncUserToSupabase(user: User) {
   try {
     const supabase = getSupabaseAdmin();
     
-    const userData = {
+    // First, insert/update the users table
+    const usersData = {
       id: user.id.toString(),
       email: user.email,
       first_name: user.firstName,
@@ -37,25 +38,51 @@ export async function syncUserToSupabase(user: User) {
       updated_at: user.updatedAt,
     };
 
-    // Upsert user to Supabase
-    const { data, error } = await supabase
+    // Upsert user to users table
+    const { data: userData, error: userError } = await supabase
       .from('users')
-      .upsert(userData, {
+      .upsert(usersData, {
         onConflict: 'id',
       })
       .select();
 
-    if (error) {
-      console.error('Error syncing user to Supabase:', error);
-      // Don't throw - allow app to continue even if sync fails
+    if (userError) {
+      console.error('Error syncing user to users table:', userError);
       return null;
     }
 
-    console.log('✅ User synced to Supabase:', user.email);
-    return data?.[0] || null;
+    console.log('✅ User synced to users table:', user.email);
+
+    // Then, insert/update the profiles table if it exists
+    try {
+      const profilesData = {
+        user_id: user.id.toString(),
+        phone: user.phone || null,
+        avatar_url: user.photoUrl || null,
+        updated_at: new Date().toISOString(),
+      };
+
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .upsert(profilesData, {
+          onConflict: 'user_id',
+        })
+        .select();
+
+      if (!profileError) {
+        console.log('✅ Profile synced to profiles table:', user.email);
+      } else {
+        console.warn('Warning syncing to profiles table:', profileError);
+        // Don't fail if profiles sync fails
+      }
+    } catch (profileSyncError) {
+      console.warn('Failed to sync profiles table:', profileSyncError);
+      // Don't fail the whole operation
+    }
+
+    return userData?.[0] || null;
   } catch (error) {
     console.error('Error in syncUserToSupabase:', error);
-    // Don't throw - allow app to continue even if sync fails
     return null;
   }
 }

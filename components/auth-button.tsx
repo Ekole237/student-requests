@@ -34,9 +34,9 @@ export function AuthButton() {
           <div className="text-xs text-muted-foreground">
             {userRole && (
               <>
-                {userRole === 'etudiant' && '👨‍🎓 Étudiant'}
-                {userRole === 'enseignant' && '👨‍🏫 Enseignant'}
-                {userRole === 'responsable_pedagogique' && '📊 Responsable'}
+                {userRole === 'student' && '👨‍🎓 Étudiant'}
+                {userRole === 'teacher' && '👨‍🏫 Enseignant'}
+                {userRole === 'department_head' && '📊 Responsable'}
                 {userRole === 'admin' && '👤 Admin'}
               </>
             )}
@@ -56,9 +56,9 @@ export function AuthButton() {
               <div className="text-xs text-muted-foreground truncate">{userEmail}</div>
               {userRole && (
                 <div className="text-xs text-muted-foreground mt-1">
-                  {userRole === 'etudiant' && '👨‍🎓 Étudiant'}
-                  {userRole === 'enseignant' && '👨‍🏫 Enseignant'}
-                  {userRole === 'responsable_pedagogique' && '📊 Responsable Pédagogique'}
+                  {userRole === 'student' && '👨‍🎓 Étudiant'}
+                  {userRole === 'teacher' && '👨‍🏫 Enseignant'}
+                  {userRole === 'department_head' && '📊 Responsable Pédagogique'}
                   {userRole === 'admin' && '👤 Administrateur'}
                 </div>
               )}
@@ -81,9 +81,7 @@ export function AuthButton() {
             </div>
 
             <div className="p-2 border-t border-border">
-              <form action="" className="w-full">
-                <LogoutButton />
-              </form>
+              <LogoutButton />
             </div>
           </div>
         </div>

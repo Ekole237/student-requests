@@ -1,6 +1,7 @@
 import { create } from "zustand";
-import type { AppRole } from "@/lib/types";
+import type { AppRole, RequestPlatformPermission } from "@/lib/types";
 import { getCurrentUser } from "@/app/actions/user";
+import { getUserPermissions, hasPermission } from "@/lib/permissions";
 
 interface UserState {
   userRole: AppRole | null;
@@ -8,16 +9,19 @@ interface UserState {
   userName: string | null;
   userEmail: string | null;
   userMatricule: string | null;
+  requestPermissions: RequestPlatformPermission[];
   fetchUserRole: () => Promise<void>;
   clearUser: () => void;
+  hasPermission: (permission: RequestPlatformPermission) => boolean;
 }
 
-export const useUserStore = create<UserState>((set) => ({
+export const useUserStore = create<UserState>((set, get) => ({
   userRole: null,
   isAdmin: false,
   userName: null,
   userEmail: null,
   userMatricule: null,
+  requestPermissions: [],
   clearUser: () => {
     console.log('Clearing user from store');
     set({
@@ -26,7 +30,15 @@ export const useUserStore = create<UserState>((set) => ({
       userName: null,
       userEmail: null,
       userMatricule: null,
+      requestPermissions: [],
     });
+  },
+  hasPermission: (permission: RequestPlatformPermission) => {
+    const state = get();
+    if (state.requestPermissions.includes('*')) {
+      return true;
+    }
+    return state.requestPermissions.includes(permission);
   },
   fetchUserRole: async () => {
     try {
@@ -53,10 +65,14 @@ export const useUserStore = create<UserState>((set) => ({
           ? `${user.firstName} ${user.lastName}` 
           : user.email;
         
+        // Get permissions for this user
+        const permissions = getUserPermissions(user);
+        
         console.log('User store - setting state:', {
           email: user.email,
           fullName,
           role: appRole,
+          permissions,
         });
         
         set({
@@ -65,6 +81,7 @@ export const useUserStore = create<UserState>((set) => ({
           userName: fullName,
           userEmail: user.email,
           userMatricule: user.matricule,
+          requestPermissions: permissions,
         });
       } else {
         console.log('No user found, clearing state');
@@ -73,7 +90,8 @@ export const useUserStore = create<UserState>((set) => ({
           isAdmin: false, 
           userName: null, 
           userEmail: null,
-          userMatricule: null 
+          userMatricule: null,
+          requestPermissions: [],
         });
       }
     } catch (error) {
@@ -83,7 +101,8 @@ export const useUserStore = create<UserState>((set) => ({
         isAdmin: false, 
         userName: null, 
         userEmail: null,
-        userMatricule: null 
+        userMatricule: null,
+        requestPermissions: [],
       });
     }
   },

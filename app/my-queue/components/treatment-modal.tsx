@@ -59,7 +59,7 @@ export default function TreatmentModal({
 
       // Load student info
       const { data: student, error: studentError } = await supabase
-        .from("users")
+        .from("profiles")
         .select("id, email, first_name, last_name")
         .eq("id", request.student_id)
         .single();

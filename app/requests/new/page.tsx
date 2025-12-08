@@ -20,6 +20,8 @@ import { RequestType, RequestTypeEnum, GradeType } from "@/lib/types";
 import { useRouter } from "next/navigation";
 import { Upload, X, CheckCircle2, AlertCircle, FileText } from "lucide-react";
 import { z } from "zod";
+import { useUserStore } from "@/stores/user";
+import { PermissionGate } from "@/components/PermissionGate";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const MAX_FILES = 5;
@@ -42,7 +44,9 @@ type SubcategoryType = "missing" | "error" | "other" | null;
 
 export default function NewRequest() {
   const router = useRouter();
+  const { hasPermission } = useUserStore();
 
+  // Initialize all hooks at the top level
   const [formData, setFormData] = useState({
     type: "" as RequestTypeEnum | "",
     gradeType: null as GradeType,
@@ -55,6 +59,27 @@ export default function NewRequest() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [descriptionLineCount, setDescriptionLineCount] = useState(0);
+
+  // Check permission to create request - after all hooks
+  if (!hasPermission('requetes:create')) {
+    return (
+      <div className="min-h-screen bg-background py-8 px-4">
+        <div className="max-w-2xl mx-auto">
+          <Card className="border-red-200 bg-red-50/50 dark:bg-red-950/10">
+            <CardContent className="pt-12 pb-12">
+              <div className="text-center space-y-3">
+                <AlertCircle className="h-12 w-12 mx-auto text-red-600" />
+                <h3 className="text-lg font-semibold">Accès Refusé</h3>
+                <p className="text-muted-foreground">
+                  Vous n'avez pas la permission de créer une requête
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -200,7 +225,7 @@ export default function NewRequest() {
         if (!uploadResult.success) {
           console.warn('File upload warning:', uploadResult.error);
           // Don't fail the request if files fail to upload
-        } else {
+        } else if (uploadResult.data) {
           console.log('✅ Files uploaded:', uploadResult.data.length);
         }
       }
@@ -248,9 +273,13 @@ export default function NewRequest() {
                 <Label htmlFor="type" className="text-base font-semibold">
                   Type de Requête *
                 </Label>
-                <Select value={formData.type} onValueChange={handleTypeChange}>
-                  <SelectTrigger id="type">
-                    <SelectValue placeholder="Sélectionnez le type de requête" />
+                <Select value={formData.type || ""} onValueChange={handleTypeChange}>
+                  <SelectTrigger id="type" className="w-full">
+                    {formData.type ? (
+                      <SelectValue />
+                    ) : (
+                      <span className="text-muted-foreground">Sélectionnez le type de requête</span>
+                    )}
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="grade_inquiry">
@@ -288,8 +317,12 @@ export default function NewRequest() {
                     value={formData.gradeType || ""} 
                     onValueChange={(value) => handleGradeTypeChange(value as GradeType)}
                   >
-                    <SelectTrigger id="gradeType">
-                      <SelectValue placeholder="Sélectionnez CC ou SN" />
+                    <SelectTrigger id="gradeType" className="w-full">
+                      {formData.gradeType ? (
+                        <SelectValue />
+                      ) : (
+                        <span className="text-muted-foreground">Sélectionnez CC ou SN</span>
+                      )}
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="CC">
@@ -310,8 +343,12 @@ export default function NewRequest() {
                     Nature du Problème *
                   </Label>
                   <Select value={formData.subcategory || ""} onValueChange={handleSubcategoryChange}>
-                    <SelectTrigger id="subcategory">
-                      <SelectValue placeholder="Sélectionnez la nature du problème" />
+                    <SelectTrigger id="subcategory" className="w-full">
+                      {formData.subcategory ? (
+                        <SelectValue />
+                      ) : (
+                        <span className="text-muted-foreground">Sélectionnez la nature du problème</span>
+                      )}
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="missing">

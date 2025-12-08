@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { createRequest, uploadRequestFiles } from "@/app/actions/requests";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,7 +42,6 @@ type SubcategoryType = "missing" | "error" | "other" | null;
 
 export default function NewRequest() {
   const router = useRouter();
-  const supabase = createClient();
 
   const [formData, setFormData] = useState({
     type: "" as RequestTypeEnum | "",
@@ -170,75 +169,46 @@ export default function NewRequest() {
     setError(null);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("User not authenticated.");
+      // Call server action to create request
+      const result = await createRequest({
+        type: formData.type as string,
+        title: formData.title,
+        description: formData.description,
+        gradeType: formData.gradeType,
+        subcategory: formData.subcategory,
+      });
 
-      let titleToUse = formData.title;
-      if (formData.type === "grade_inquiry" && formData.gradeType === "CC" && formData.subcategory) {
-        const subcategoryLabels: Record<string, string> = {
-          missing: "Absence de note",
-          error: "Erreur de note",
-        };
-        titleToUse = `${formData.title} (${subcategoryLabels[formData.subcategory] || formData.subcategory})`;
+      if (!result.success) {
+        setError(result.error || "Failed to create request");
+        setLoading(false);
+        return;
       }
 
-      const { data: request, error: requestError } = await supabase
-        .from("requetes")
-        .insert({
-          student_id: user.id,
-          type: formData.type,
-          title: titleToUse,
-          description: formData.description,
-          status: "submitted",
-          validation_status: "pending",
-          grade_type: formData.gradeType,
-          priority: "normal",
-        })
-        .select()
-        .single();
+      const requestId = result.data.id;
+      console.log('✅ Request created:', requestId);
 
-      if (requestError) throw requestError;
-
-      // Upload files
+      // Upload files if any
       if (files.length > 0) {
-        for (const file of files) {
-          const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${file.name}`;
-          const filePath = `${user.id}/${request.id}/${fileName}`;
+        console.log('Uploading', files.length, 'files...');
+        const formData = new FormData();
+        files.forEach((file) => {
+          formData.append('files', file);
+        });
 
-          const { error: uploadError } = await supabase.storage
-            .from("request-attachments")
-            .upload(filePath, file);
-
-          if (uploadError) throw uploadError;
-
-          const { error: attachmentError } = await supabase
-            .from("attachments")
-            .insert({
-              request_id: request.id,
-              file_name: file.name,
-              file_path: filePath,
-              file_size: file.size,
-              file_type: file.type,
-              uploaded_by: user.id,
-            });
-
-          if (attachmentError) throw attachmentError;
+        const uploadResult = await uploadRequestFiles(requestId, formData);
+        
+        if (!uploadResult.success) {
+          console.warn('File upload warning:', uploadResult.error);
+          // Don't fail the request if files fail to upload
+        } else {
+          console.log('✅ Files uploaded:', uploadResult.data.length);
         }
       }
 
-      // Create notification for student
-      await supabase.from("notifications").insert({
-        user_id: user.id,
-        request_id: request.id,
-        title: "Requête soumise",
-        message: `Votre requête "${formData.title}" a été soumise avec succès et sera vérifiée par l'administration.`,
-        type: "request_created",
-      });
-
+      // Success - redirect to dashboard
       router.push("/dashboard");
     } catch (err: unknown) {
       setError((err as Error).message || "An error occurred while creating the request.");
-    } finally {
       setLoading(false);
     }
   };

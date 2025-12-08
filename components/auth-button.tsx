@@ -2,39 +2,26 @@
 
 import Link from "next/link";
 import { Button } from "./ui/button";
-import { createClient } from "@/lib/supabase/client";
 import { LogoutButton } from "./logout-button";
 import { useEffect, useState } from "react";
-import type { User } from "@supabase/supabase-js";
+import { useUserStore } from "@/stores/user";
 
 export function AuthButton() {
-  const [user, setUser] = useState<User | null>(null);
-  const supabase = createClient();
+  const [isClient, setIsClient] = useState(false);
+  const { userName, userEmail, fetchUserRole } = useUserStore();
 
   useEffect(() => {
-    const fetchUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      setUser(user);
-    };
+    setIsClient(true);
+    fetchUserRole();
+  }, [fetchUserRole]);
 
-    fetchUser();
+  if (!isClient) {
+    return null;
+  }
 
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setUser(session?.user ?? null);
-      },
-    );
-
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
-  }, [supabase]);
-
-  return user ? (
+  return userEmail ? (
     <div className="flex items-center gap-4">
-      Hey, {user.email}!
+      Hey, {userName || userEmail}!
       <LogoutButton />
     </div>
   ) : (

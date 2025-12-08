@@ -6,25 +6,19 @@ import { AuthButton } from "./auth-button";
 import { Button } from "./ui/button";
 import { ThemeSwitcher } from "./theme-switcher";
 import NotificationList from "./notification-list";
-import { createClient } from "@/lib/supabase/client";
-import type { User } from "@supabase/supabase-js";
+import { useUserStore } from "@/stores/user";
 
 interface NavbarProps {
   onMenuClick: () => void;
 }
 
 export default function Navbar({ onMenuClick }: NavbarProps) {
-  const [user, setUser] = useState<User | null>(null);
-  const supabase = createClient();
+  const [userId, setUserId] = useState<string | null>(null);
+  const { userName, userEmail, fetchUserRole } = useUserStore();
 
   useEffect(() => {
-    const fetchUser = async () => {
-      const { data: { user }, } = await supabase.auth.getUser();
-      setUser(user);
-    };
-
-    fetchUser();
-  }, [supabase]);
+    fetchUserRole();
+  }, [fetchUserRole]);
 
   return (
     <header className="bg-background h-16 shadow flex items-center justify-between px-4 lg:px-6 border-b border-border-secondary">
@@ -38,7 +32,7 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
 
       <div className="flex-1"></div>
       <div className="flex items-center gap-4">
-        {user && <NotificationList userId={user.id} />}
+        {userName && <NotificationList userId={userId || ""} />}
 
         <Suspense>
          <AuthButton />

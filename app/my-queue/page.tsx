@@ -27,22 +27,52 @@ export default async function MyQueuePage() {
     redirect("/dashboard");
   }
 
-  // Fetch requests routed to this user
-  const { data: requests, error: requestsError } = await supabase
+  // Fetch all validated requests from the same filière/promotion
+  // RPs can see:
+  // 1. Requests routed directly to them
+  // 2. Requests routed to any teacher in their filière/promotion
+  
+  const userPromotionCode = user.promotion?.name || "";
+  
+  // First, get all requests from this promotion
+  const { data: allPromotionRequests, error: requestsError } = await supabase
     .from("requetes")
     .select("*")
-    .eq("routed_to", user.id.toString())
     .eq("status", "validated")
+    .eq("promotion_code", userPromotionCode)
     .order("created_at", { ascending: false });
 
   if (requestsError) {
     console.error("Error fetching requests:", requestsError);
   }
 
-  const allRequests = requests || [];
-  const pendingCount = allRequests.filter((r) => r.final_status === "pending").length;
-  const approvedCount = allRequests.filter((r) => r.final_status === "approved").length;
-  const rejectedCount = allRequests.filter((r) => r.final_status === "rejected").length;
+  // Get all teachers in the same promotion (for checking if routed_to is a teacher)
+  const { data: promotionTeachers, error: teachersError } = await supabase
+    .from("users")
+    .select("id")
+    .eq("role", "teacher")
+    .eq("promotion_code", userPromotionCode)
+    .eq("is_active", true);
+
+  const teacherIds = new Set(promotionTeachers?.map(t => t.id) || []);
+
+  // Filter requests based on RP's authority
+  const requests = (allPromotionRequests || []).filter(req => {
+    // RP can see requests routed directly to them
+    if (req.routed_to === user.id.toString()) {
+      return true;
+    }
+    
+    // RP can see requests routed to any teacher in their filière
+    if (req.routed_to && teacherIds.has(req.routed_to)) {
+      return true;
+    }
+    
+    return false;
+  });
+  const pendingCount = requests.filter((r) => r.final_status === "pending").length;
+  const approvedCount = requests.filter((r) => r.final_status === "approved").length;
+  const rejectedCount = requests.filter((r) => r.final_status === "rejected").length;
 
   const getRoleLabel = () => {
     const labels: Record<string, string> = {
@@ -78,7 +108,7 @@ export default async function MyQueuePage() {
             <CardContent className="pt-6">
               <div className="text-center">
                 <p className="text-sm text-muted-foreground mb-2">Total</p>
-                <p className="text-4xl font-bold">{allRequests.length}</p>
+                <p className="text-4xl font-bold">{requests.length}</p>
               </div>
             </CardContent>
           </Card>
@@ -126,7 +156,7 @@ export default async function MyQueuePage() {
         )}
 
         {/* Empty State */}
-        {allRequests.length === 0 ? (
+        {requests.length === 0 ? (
           <Card>
             <CardContent className="pt-12 pb-12">
               <div className="text-center space-y-3">
@@ -139,7 +169,7 @@ export default async function MyQueuePage() {
             </CardContent>
           </Card>
         ) : (
-          <QueueList requests={allRequests} userRole={user.role?.name || ""} />
+          <QueueList requests={requests} userRole={user.role?.name || ""} />
         )}
       </div>
     </div>

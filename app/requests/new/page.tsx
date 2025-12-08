@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createRequest, uploadRequestFiles } from "@/app/actions/requests";
+import { getCurrentUser } from "@/app/actions/user";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -74,29 +75,49 @@ export default function NewRequest() {
   const [teachers, setTeachers] = useState<User[]>([]);
   const [responsablePedagogiques, setResponsablePedagogiques] = useState<User[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
+  const [userPromotionCode, setUserPromotionCode] = useState<string | null>(null);
 
   // ✅ NOUVEAU: Charger les enseignants et RP au montage
   useEffect(() => {
     const loadUsers = async () => {
       setLoadingUsers(true);
       try {
-        // Charger enseignants
-        const { data: teacherUsers, error: teacherError } = await supabase
+        // Récupérer l'utilisateur actuel pour avoir son code de promotion
+        const currentUser = await getCurrentUser();
+        const promotionCode = currentUser?.promotion?.name || null;
+        setUserPromotionCode(promotionCode);
+
+        // Charger enseignants de la même filière/promotion
+        let teacherQuery = supabase
           .from("users")
           .select("id, email, first_name, last_name")
           .eq("role", "teacher")
           .eq("is_active", true);
 
+        // Filtrer par promotion si l'étudiant en a une
+        if (promotionCode) {
+          teacherQuery = teacherQuery.eq("promotion_code", promotionCode);
+        }
+
+        const { data: teacherUsers, error: teacherError } = await teacherQuery;
+
         if (!teacherError && teacherUsers) {
           setTeachers(teacherUsers);
         }
 
-        // Charger responsables pédagogiques
-        const { data: rpUsers, error: rpError } = await supabase
+        // Charger responsables pédagogiques de la même filière/promotion
+        let rpQuery = supabase
           .from("users")
           .select("id, email, first_name, last_name")
           .eq("role", "department_head")
           .eq("is_active", true);
+
+        // Filtrer par promotion si l'étudiant en a une
+        if (promotionCode) {
+          rpQuery = rpQuery.eq("promotion_code", promotionCode);
+        }
+
+        const { data: rpUsers, error: rpError } = await rpQuery;
 
         if (!rpError && rpUsers) {
           setResponsablePedagogiques(rpUsers);

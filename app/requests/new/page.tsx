@@ -84,7 +84,7 @@ export default function NewRequest() {
       try {
         // Récupérer l'utilisateur actuel pour avoir son code de promotion
         const currentUser = await getCurrentUser();
-        const promotionCode = currentUser?.promotion?.name || null;
+        const promotionCode = currentUser?.promotion?.code || null;
         setUserPromotionCode(promotionCode);
 
         // Charger enseignants de la même filière/promotion

@@ -15,6 +15,16 @@ export interface Role {
 }
 
 /**
+ * Promotion type - mirrors backend Promotion model
+ */
+export interface Promotion {
+  id: number;
+  code: string;
+  niveau: string;
+  isTroncCommun: boolean;
+}
+
+/**
  * User type - mirrors backend User model
  */
 export interface User {
@@ -43,10 +53,7 @@ export interface User {
     code: string;
     name: string;
   } | null;
-  promotion?: {
-    id: number;
-    name: string;
-  } | null;
+  promotion?: Promotion | null;
 }
 
 /**
@@ -66,8 +73,12 @@ export interface VerifyTokenResponse {
     id: number;
     matricule: string;
     email: string;
+    firstName: string;
+    lastName: string;
     role: string;
     permissions: string[];
+    departement?: string;
+    promotion?: Promotion | null;
   };
 }
 
@@ -86,4 +97,5 @@ export interface AuthenticatedUser {
     code: string;
     name: string;
   } | null;
+  promotion?: Promotion | null;
 }

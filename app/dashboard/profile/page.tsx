@@ -189,7 +189,8 @@ export default async function ProfilePage() {
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Promotion</p>
                     <Badge variant="outline">
-                      {user.promotion.name}
+                      {user.promotion.code} - Niveau {user.promotion.niveau}
+                      {user.promotion.isTroncCommun && ' (TCO)'}
                     </Badge>
                   </div>
                 )}

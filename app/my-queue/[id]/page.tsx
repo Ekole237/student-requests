@@ -94,11 +94,23 @@ export default function TreatRequestPage() {
 
     setProcessing(true);
     try {
+      // Use Server Action to get current user (Adonis auth, not Supabase)
+      const { getCurrentUser } = await import('@/app/actions/user');
+      const currentUser = await getCurrentUser();
+      
+      if (!currentUser) {
+        throw new Error('User not authenticated');
+      }
+
       const { error } = await supabase
         .from("requetes")
         .update({
-          final_status: decision,
-          processing_comment: comment || null,
+          final_status: decision === "approve" ? "approved" : "rejected",  // ✅ Correct enum values
+          internal_notes: comment || null,                                  // ✅ Correct field name
+          resolved_by: currentUser.id.toString(),                           // ✅ Convert to string (Adonis ID is number)
+          resolved_at: new Date().toISOString(),                            // ✅ NOUVEAU
+          status: "completed",                                              // ✅ NOUVEAU - Mark as completed
+          updated_at: new Date().toISOString()
         })
         .eq("id", requestId);
 
@@ -109,7 +121,7 @@ export default function TreatRequestPage() {
         user_id: request.created_by,
         requete_id: request.id,
         title: decision === "approve" ? "Requête approuvée" : "Requête rejetée",
-        message: `Votre requête "${request.title}" a été ${decision === "approve" ? "approuvée" : "rejetée"}.`,
+        message: `Votre requête "${request.title}" a été ${decision === "approve" ? "approuvée" : "rejetée"}.${comment ? ` Commentaire: ${comment}` : ''}`,
         type: "request_processed",
       });
 

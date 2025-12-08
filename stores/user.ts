@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { AppRole, RequestPlatformPermission } from "@/lib/types";
+import type { Promotion } from "@/lib/backend-types";
 import { getCurrentUser } from "@/app/actions/user";
 import { getUserPermissions, hasPermission } from "@/lib/permissions";
 
@@ -9,6 +10,7 @@ interface UserState {
   userName: string | null;
   userEmail: string | null;
   userMatricule: string | null;
+  promotion: Promotion | null;
   requestPermissions: RequestPlatformPermission[];
   fetchUserRole: () => Promise<void>;
   clearUser: () => void;
@@ -21,6 +23,7 @@ export const useUserStore = create<UserState>((set, get) => ({
   userName: null,
   userEmail: null,
   userMatricule: null,
+  promotion: null,
   requestPermissions: [],
   clearUser: () => {
     console.log('Clearing user from store');
@@ -30,6 +33,7 @@ export const useUserStore = create<UserState>((set, get) => ({
       userName: null,
       userEmail: null,
       userMatricule: null,
+      promotion: null,
       requestPermissions: [],
     });
   },
@@ -72,6 +76,7 @@ export const useUserStore = create<UserState>((set, get) => ({
           email: user.email,
           fullName,
           role: appRole,
+          promotion: user.promotion,
           permissions,
         });
         
@@ -81,6 +86,7 @@ export const useUserStore = create<UserState>((set, get) => ({
           userName: fullName,
           userEmail: user.email,
           userMatricule: user.matricule,
+          promotion: user.promotion || null,
           requestPermissions: permissions,
         });
       } else {
@@ -91,6 +97,7 @@ export const useUserStore = create<UserState>((set, get) => ({
           userName: null, 
           userEmail: null,
           userMatricule: null,
+          promotion: null,
           requestPermissions: [],
         });
       }
@@ -102,6 +109,7 @@ export const useUserStore = create<UserState>((set, get) => ({
         userName: null, 
         userEmail: null,
         userMatricule: null,
+        promotion: null,
         requestPermissions: [],
       });
     }

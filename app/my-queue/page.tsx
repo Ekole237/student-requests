@@ -32,15 +32,31 @@ export default async function MyQueuePage() {
   // 1. Requests routed directly to them
   // 2. Requests routed to any teacher in their filière/promotion
   
-  const userPromotionCode = user.promotion?.name || "";
+  const userPromotionCode = user.promotion?.code || "";
+  
+  console.log("🔍 /my-queue DEBUG: User info:", {
+    userId: user.id,
+    userRole: user.role?.name,
+    userPromotion: user.promotion?.code,
+    userPromotionCode,
+  });
   
   // First, get all requests from this promotion
+  // Only get validated requests that haven't been resolved (final_status IS NULL)
   const { data: allPromotionRequests, error: requestsError } = await supabase
     .from("requetes")
     .select("*")
     .eq("status", "validated")
+    .is("final_status", null)  // Only pending requests (not yet resolved)
     .eq("promotion_code", userPromotionCode)
     .order("created_at", { ascending: false });
+
+  console.log("🔍 /my-queue DEBUG: Query results:", {
+    promotion_code: userPromotionCode,
+    count: allPromotionRequests?.length || 0,
+    error: requestsError?.message,
+    sample: allPromotionRequests?.[0],
+  });
 
   if (requestsError) {
     console.error("Error fetching requests:", requestsError);
@@ -56,21 +72,37 @@ export default async function MyQueuePage() {
 
   const teacherIds = new Set(promotionTeachers?.map(t => t.id) || []);
 
-  // Filter requests based on RP's authority
+  // Filter requests based on user's authority
+  const userId = user.id.toString(); // Convert Adonis ID to string
   const requests = (allPromotionRequests || []).filter(req => {
+    // Enseignant can only see requests routed directly to them
+    if (user.role?.name === "enseignant") {
+      return req.routed_to === userId;
+    }
+    
     // RP can see requests routed directly to them
-    if (req.routed_to === user.id.toString()) {
+    if (req.routed_to === userId) {
       return true;
     }
     
-    // RP can see requests routed to any teacher in their filière
+    // RP can also see requests routed to any teacher in their filière
     if (req.routed_to && teacherIds.has(req.routed_to)) {
       return true;
     }
     
     return false;
   });
-  const pendingCount = requests.filter((r) => r.final_status === "pending").length;
+
+  console.log("🔍 /my-queue DEBUG: After filtering:", {
+    totalFetched: allPromotionRequests?.length || 0,
+    filteredRequests: requests.length,
+    userId,
+    userRole: user.role?.name,
+    teacherIdsCount: teacherIds.size,
+    sampleRequest: requests[0],
+  });
+  // final_status is NULL for pending (not yet decided), 'approved' or 'rejected' when decided
+  const pendingCount = requests.filter((r) => r.final_status === null).length;
   const approvedCount = requests.filter((r) => r.final_status === "approved").length;
   const rejectedCount = requests.filter((r) => r.final_status === "rejected").length;
 

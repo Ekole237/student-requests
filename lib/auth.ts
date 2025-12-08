@@ -10,6 +10,12 @@ export interface VerifyResponse {
     lastName: string;
     role: string;
     permissions: string[];
+    departement?: string;
+    promotion?: {
+      code: string;
+      niveau: string;
+      isTroncCommun: boolean;
+    } | null;
   };
 }
 
@@ -82,7 +88,7 @@ export async function getUser(authToken?: string): Promise<User | null> {
 
   console.log('getUser() - user authenticated:', result.user.email);
   
-  // Return simplified user for now, in real app would fetch full user data
+  // Return user with promotion info
   return {
     id: result.user.id,
     matricule: result.user.matricule,
@@ -108,6 +114,16 @@ export async function getUser(authToken?: string): Promise<User | null> {
       permissions: result.user.permissions,
       createdAt: new Date().toISOString(),
     },
-    departement: null,
+    departement: result.user.departement ? {
+      id: 0,
+      code: result.user.departement,
+      name: result.user.departement,
+    } : null,
+    promotion: result.user.promotion ? {
+      id: 0,
+      code: result.user.promotion.code,
+      niveau: result.user.promotion.niveau,
+      isTroncCommun: result.user.promotion.isTroncCommun,
+    } : null,
   };
 }

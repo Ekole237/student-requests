@@ -2,6 +2,7 @@
 
 import { getUser } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
+import { logRequestAction } from '@/lib/audit';
 
 export interface CreateRequestPayload {
   type: string;
@@ -74,6 +75,67 @@ export async function createRequest(payload: CreateRequestPayload) {
       console.log('[REQUEST] Title modified with subcategory:', finalTitle);
     }
 
+    // ✅ NOUVEAU: Valider routed_to ID et rôle AVANT création
+    if (payload.routed_to) {
+      console.log('[REQUEST] Validating routed_to:', payload.routed_to);
+      
+      const { data: targetUser, error: targetError } = await supabase
+        .from('users')
+        .select('id, role, is_active')
+        .eq('id', payload.routed_to)
+        .single();
+
+      if (targetError || !targetUser) {
+        console.error('[REQUEST] ❌ Invalid routed_to ID:', {
+          routed_to: payload.routed_to,
+          error: targetError?.message
+        });
+        return {
+          success: false,
+          error: 'Enseignant/Responsable sélectionné n\'existe pas',
+        };
+      }
+
+      if (!targetUser.is_active) {
+        console.error('[REQUEST] ❌ routed_to user is inactive:', payload.routed_to);
+        return {
+          success: false,
+          error: 'Enseignant/Responsable est inactif',
+        };
+      }
+
+      // Valider le rôle basé sur le grade_type
+      if (payload.gradeType === 'CC' && targetUser.role !== 'enseignant') {
+        console.error('[REQUEST] ❌ Invalid role for CC:', {
+          gradeType: 'CC',
+          targetRole: targetUser.role,
+          expectedRole: 'enseignant'
+        });
+        return {
+          success: false,
+          error: 'Pour CC, vous devez choisir un Enseignant',
+        };
+      }
+
+      if (payload.gradeType === 'SN' && targetUser.role !== 'responsable_pedagogique') {
+        console.error('[REQUEST] ❌ Invalid role for SN:', {
+          gradeType: 'SN',
+          targetRole: targetUser.role,
+          expectedRole: 'responsable_pedagogique'
+        });
+        return {
+          success: false,
+          error: 'Pour SN, vous devez choisir un Responsable Pédagogique',
+        };
+      }
+
+      console.log('[REQUEST] ✅ routed_to validation passed:', {
+        userId: targetUser.id,
+        role: targetUser.role,
+        gradeType: payload.gradeType
+      });
+    }
+
     // ✅ NOUVEAU: Déterminer si auto-validation (CC/SN seulement)
     const isAutoValidated = 
       payload.type === 'grade_inquiry' && 
@@ -130,6 +192,14 @@ export async function createRequest(payload: CreateRequestPayload) {
       request_type: request.request_type,
       createdBy: request.created_by,
     });
+
+    // ✅ Log audit trail
+    await logRequestAction(
+      request.id,
+      'create',
+      user.id.toString(),
+      `${payload.type} (${payload.gradeType || 'N/A'}) routed to ${payload.routed_to || 'NONE'}`
+    );
 
     // Create notification for student
     console.log('[REQUEST] Creating notification...');

@@ -48,16 +48,20 @@ export async function verifyToken(token: string): Promise<VerifyResponse | null>
   }
 }
 
-export async function getUser(): Promise<User | null> {
-  const { cookies } = await import('next/headers');
-  const cookieStore = await cookies();
-  const token = cookieStore.get('auth_token')?.value;
+export async function getUser(authToken?: string): Promise<User | null> {
+  let token = authToken;
+  
+  if (!token) {
+    const { cookies } = await import('next/headers');
+    const cookieStore = await cookies();
+    token = cookieStore.get('auth_token')?.value;
+  }
 
   console.log('getUser() - token exists:', !!token);
   console.log('getUser() - token length:', token?.length || 0);
 
   if (!token) {
-    console.log('getUser() - no token found in cookies');
+    console.log('getUser() - no token found in cookies or header');
     return null;
   }
 

@@ -63,7 +63,10 @@ export async function login(formData: FormData) {
     
     // Sync user to Supabase in the background
     try {
+      console.log('[AUTH] Starting Supabase sync after login...');
+      
       // Fetch the complete user data
+      console.log('[AUTH] Verifying token with ENSPD API...');
       const userResponse = await fetch(`${process.env.NEXT_PUBLIC_AUTH_URL}/api/verify`, {
         method: 'POST',
         headers: {
@@ -74,21 +77,42 @@ export async function login(formData: FormData) {
 
       if (userResponse.ok) {
         const userData = await userResponse.json();
+        console.log('[AUTH] Token verified, user data received:', {
+          id: userData.user?.id,
+          email: userData.user?.email,
+        });
         
         // Call Supabase sync endpoint
-        await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/auth/sync-supabase`, {
+        // Note: Pass token in Authorization header since we're in a Server Action
+        console.log('[AUTH] Calling /api/auth/sync-supabase endpoint...');
+        const syncStartTime = Date.now();
+        const syncResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/auth/sync-supabase`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
+            'Authorization': `Bearer ${token}`,
           },
-          credentials: 'include', // Include cookies
         });
+        const syncDuration = Date.now() - syncStartTime;
         
-        console.log('✅ User synced to Supabase');
+        if (syncResponse.ok) {
+          const syncData = await syncResponse.json();
+          console.log(`✅ [AUTH] User synced to Supabase successfully (${syncDuration}ms):`, {
+            success: syncData.success,
+            message: syncData.message,
+          });
+        } else {
+          console.error('[AUTH] ❌ Sync endpoint returned error:', {
+            status: syncResponse.status,
+            statusText: syncResponse.statusText,
+          });
+        }
+      } else {
+        console.warn('[AUTH] ⚠️  User verification failed, skipping sync');
       }
     } catch (error) {
-      console.error('Failed to sync user to Supabase:', error);
+      console.error('[AUTH] ❌ Failed to sync user to Supabase:', error);
       // Don't fail login if sync fails
     }
     

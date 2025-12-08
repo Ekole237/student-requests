@@ -45,6 +45,11 @@ export default function SideNavigation({
 
   const navItems: NavItem[] = [
     {
+      name: "Accueil",
+      href: "/dashboard",
+      icon: <LayoutDashboard size={18} />,
+    },
+    {
       name: "Mon Profil",
       href: "/dashboard/profile",
       icon: <User size={18} />,
@@ -53,12 +58,12 @@ export default function SideNavigation({
       ? [
           {
             name: "Mes Requêtes",
-            href: "/dashboard",
+            href: "/dashboard/requests",
             icon: <List size={18} />,
           },
           {
             name: "Soumettre une Requête",
-            href: "/dashboard/submit",
+            href: "/requests/new",
             icon: <Plus size={18} />,
           },
         ]

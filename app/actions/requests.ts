@@ -268,7 +268,7 @@ export async function getRequestDetails(requestId: string) {
     }
 
     // Get attachments
-    const { data: attachments, error: attachmentError } = await supabase
+    const { data: attachmentsData, error: attachmentError } = await supabase
       .from('attachments')
       .select('*')
       .eq('request_id', requestId)
@@ -276,14 +276,13 @@ export async function getRequestDetails(requestId: string) {
 
     if (attachmentError) {
       console.error('Error fetching attachments:', attachmentError);
-      attachments = [];
     }
 
     return {
       success: true,
       data: {
         request,
-        attachments: attachments || [],
+        attachments: attachmentsData || [],
       },
     };
   } catch (error) {

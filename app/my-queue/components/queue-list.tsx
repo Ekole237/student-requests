@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,6 @@ import {
 } from "@/components/ui/select";
 import { AlertCircle, CheckCircle2, Search, FileText, Clock } from "lucide-react";
 import type { Requete } from "@/lib/types";
-import TreatmentModal from "./treatment-modal";
 
 interface QueueListProps {
   requests: Requete[];
@@ -25,17 +25,19 @@ type FilterStatus = "all" | "pending" | "approved" | "rejected";
 type SortBy = "date_asc" | "date_desc" | "type";
 
 export default function QueueList({ requests, userRole }: QueueListProps) {
+  const router = useRouter();
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("pending");
   const [sortBy, setSortBy] = useState<SortBy>("date_desc");
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedRequest, setSelectedRequest] = useState<Requete | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [requests_, setRequests_] = useState(requests);
 
   // Filter requests
   const filtered = requests_
     .filter((req) => {
-      const matchStatus = filterStatus === "all" || req.final_status === filterStatus;
+      const matchStatus = 
+        filterStatus === "all" || 
+        (filterStatus === "pending" && req.final_status === null) ||
+        (filterStatus !== "pending" && req.final_status === filterStatus);
       const matchSearch =
         req.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         req.created_by.toLowerCase().includes(searchTerm.toLowerCase());
@@ -46,14 +48,6 @@ export default function QueueList({ requests, userRole }: QueueListProps) {
       if (sortBy === "date_desc") return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       return a.request_type.localeCompare(b.request_type);
     });
-
-  const handleTreat = (updatedRequest: Requete) => {
-    setRequests_((prev) =>
-      prev.map((r) => (r.id === updatedRequest.id ? updatedRequest : r))
-    );
-    setIsModalOpen(false);
-    setSelectedRequest(null);
-  };
 
   const getTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
@@ -240,8 +234,7 @@ export default function QueueList({ requests, userRole }: QueueListProps) {
                   {/* Action Button */}
                   <Button
                     onClick={() => {
-                      setSelectedRequest(request);
-                      setIsModalOpen(true);
+                      router.push(`/my-queue/${request.id}`);
                     }}
                     className="flex-shrink-0 mt-2"
                     variant={request.final_status === null ? "default" : "outline"}
@@ -266,18 +259,6 @@ export default function QueueList({ requests, userRole }: QueueListProps) {
       </div>
 
       {/* Treatment Modal */}
-      {selectedRequest && (
-        <TreatmentModal
-          request={selectedRequest}
-          isOpen={isModalOpen}
-          onClose={() => {
-            setIsModalOpen(false);
-            setSelectedRequest(null);
-          }}
-          onTreat={handleTreat}
-          userRole={userRole}
-        />
-      )}
     </div>
   );
 }

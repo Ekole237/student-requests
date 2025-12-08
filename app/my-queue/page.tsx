@@ -139,7 +139,7 @@ export default async function MyQueuePage() {
             </CardContent>
           </Card>
         ) : (
-          <QueueList requests={allRequests} userRole={userRole} />
+          <QueueList requests={allRequests} userRole={user.role?.name || ""} />
         )}
       </div>
     </div>

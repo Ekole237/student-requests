@@ -81,39 +81,25 @@ export default function NewRequest() {
       setLoadingUsers(true);
       try {
         // Charger enseignants
-        const { data: teacherRoles, error: teacherError } = await supabase
-          .from("user_roles")
-          .select("user_id, profiles(id, email, first_name, last_name)")
-          .eq("role", "teacher");
+        const { data: teacherUsers, error: teacherError } = await supabase
+          .from("users")
+          .select("id, email, first_name, last_name")
+          .eq("role", "teacher")
+          .eq("is_active", true);
 
-        if (!teacherError && teacherRoles) {
-          const teacherList = teacherRoles
-            .filter((ur: any) => ur.profiles)
-            .map((ur: any) => ({
-              id: ur.user_id,
-              email: ur.profiles.email,
-              first_name: ur.profiles.first_name,
-              last_name: ur.profiles.last_name,
-            }));
-          setTeachers(teacherList);
+        if (!teacherError && teacherUsers) {
+          setTeachers(teacherUsers);
         }
 
         // Charger responsables pédagogiques
-        const { data: rpRoles, error: rpError } = await supabase
-          .from("user_roles")
-          .select("user_id, profiles(id, email, first_name, last_name)")
-          .eq("role", "department_head");
+        const { data: rpUsers, error: rpError } = await supabase
+          .from("users")
+          .select("id, email, first_name, last_name")
+          .eq("role", "department_head")
+          .eq("is_active", true);
 
-        if (!rpError && rpRoles) {
-          const rpList = rpRoles
-            .filter((ur: any) => ur.profiles)
-            .map((ur: any) => ({
-              id: ur.user_id,
-              email: ur.profiles.email,
-              first_name: ur.profiles.first_name,
-              last_name: ur.profiles.last_name,
-            }));
-          setResponsablePedagogiques(rpList);
+        if (!rpError && rpUsers) {
+          setResponsablePedagogiques(rpUsers);
         }
       } catch (err) {
         console.error("Error loading users:", err);

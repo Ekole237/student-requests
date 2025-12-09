@@ -1,4 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
+import { createClient as createSupabaseAdminClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
 /**
@@ -40,4 +41,22 @@ export async function createClient() {
       },
     },
   );
+}
+
+/**
+ * Create an admin Supabase client using Service Role Key
+ * Bypasses RLS policies - use only for server-side operations
+ * Never expose this key to the client!
+ */
+export function createAdminClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error('Missing Supabase credentials for admin client');
+  }
+
+  console.log('[ADMIN_CLIENT] Creating admin client with Service Role Key');
+
+  return createSupabaseAdminClient(supabaseUrl, serviceRoleKey);
 }

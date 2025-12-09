@@ -296,19 +296,27 @@ export default function NewRequest() {
 
       // Upload files if any
       if (files.length > 0) {
-        console.log('Uploading', files.length, 'files...');
+        console.log('[CLIENT] 📤 Uploading', files.length, 'files...');
         const formDataFile = new FormData();
         files.forEach((file) => {
+          console.log('[CLIENT] Adding file to FormData:', { 
+            name: file.name, 
+            size: file.size, 
+            type: file.type 
+          });
           formDataFile.append('files', file);
         });
 
+        console.log('[CLIENT] Calling uploadRequestFiles server action...');
         const uploadResult = await uploadRequestFiles(requestId, formDataFile);
         
+        console.log('[CLIENT] Upload result:', uploadResult);
+        
         if (!uploadResult.success) {
-          console.warn('File upload warning:', uploadResult.error);
+          console.warn('[CLIENT] ⚠️ File upload warning:', uploadResult.error);
           // Don't fail the request if files fail to upload
         } else if (uploadResult.data) {
-          console.log('✅ Files uploaded:', uploadResult.data.length);
+          console.log('[CLIENT] ✅ Files uploaded:', uploadResult.data.length);
         }
       }
 

@@ -33,22 +33,33 @@ export default async function MyQueuePage() {
   // 2. Requests routed to any teacher in their filière/promotion
   
   const userPromotionCode = user.promotion?.code || "";
+  const userDepartmentCode = user.departement?.code || "";
   
   console.log("🔍 /my-queue DEBUG: User info:", {
     userId: user.id,
     userRole: user.role?.name,
     userPromotion: user.promotion?.code,
+    userDepartment: user.departement?.code,
     userPromotionCode,
   });
   
   // First, get all requests from this promotion
   // Only get validated requests that haven't been resolved (final_status IS NULL)
-  const { data: allPromotionRequests, error: requestsError } = await supabase
+  // Filter by department_code (filière) since that's what's in Supabase
+  let query = supabase
     .from("requetes")
     .select("*")
     .eq("status", "validated")
-    .is("final_status", null)  // Only pending requests (not yet resolved)
-    .eq("promotion_code", userPromotionCode)
+    .is("final_status", null);  // Only pending requests (not yet resolved)
+  
+  // Filter by department if available, else by promotion
+  if (userDepartmentCode) {
+    query = query.eq("department_code", userDepartmentCode);
+  } else if (userPromotionCode) {
+    query = query.eq("promotion_code", userPromotionCode);
+  }
+  
+  const { data: allPromotionRequests, error: requestsError } = await query
     .order("created_at", { ascending: false });
 
   console.log("🔍 /my-queue DEBUG: Query results:", {
@@ -63,12 +74,20 @@ export default async function MyQueuePage() {
   }
 
   // Get all teachers in the same promotion (for checking if routed_to is a teacher)
-  const { data: promotionTeachers, error: teachersError } = await supabase
+  let teacherQuery = supabase
     .from("users")
     .select("id")
     .eq("role", "teacher")
-    .eq("promotion_code", userPromotionCode)
     .eq("is_active", true);
+  
+  // Filter by department if available, else by promotion
+  if (userDepartmentCode) {
+    teacherQuery = teacherQuery.eq("department_code", userDepartmentCode);
+  } else if (userPromotionCode) {
+    teacherQuery = teacherQuery.eq("promotion_code", userPromotionCode);
+  }
+  
+  const { data: promotionTeachers, error: teachersError } = await teacherQuery;
 
   const teacherIds = new Set(promotionTeachers?.map(t => t.id) || []);
 

@@ -59,6 +59,7 @@ export async function syncUserToSupabase(user: User) {
       matricule: user.matricule,
       role: mapRoleToSupabase(user.role?.name),
       department_code: user.departement?.code || null,
+      promotion_code: user.promotion?.code || null,  // ✨ NEW
       is_active: user.isActive,
       created_at: user.createdAt,
       updated_at: user.updatedAt,
@@ -69,6 +70,7 @@ export async function syncUserToSupabase(user: User) {
       email: usersData.email,
       role: usersData.role,
       department_code: usersData.department_code,
+      promotion_code: usersData.promotion_code,  // ✨ NEW
     }));
 
     // Upsert user to users table
@@ -222,6 +224,7 @@ export async function syncUsersToSupabase(users: User[]) {
       matricule: user.matricule,
       role: user.role?.name || 'etudiant',
       department_code: user.departement?.code || null,
+      promotion_code: user.promotion?.code || null,  // ✨ NEW
       is_active: user.isActive,
       created_at: user.createdAt,
       updated_at: user.updatedAt,
@@ -230,6 +233,7 @@ export async function syncUsersToSupabase(users: User[]) {
     console.log('[SYNC] Prepared data for users:', {
       count: userData.length,
       emails: userData.map(u => u.email),
+      samplePromotion: userData[0]?.promotion_code,  // ✨ NEW
     });
 
     console.log('[SYNC] Batch upserting to users table...');

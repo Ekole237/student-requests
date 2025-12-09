@@ -1,7 +1,7 @@
 'use server';
 
 import { getUser } from '@/lib/auth';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { logRequestAction } from '@/lib/audit';
 
 export interface CreateRequestPayload {
@@ -105,11 +105,12 @@ export async function createRequest(payload: CreateRequestPayload) {
       }
 
       // Valider le rôle basé sur le grade_type
-      if (payload.gradeType === 'CC' && targetUser.role !== 'enseignant') {
+      // Note: Supabase roles are in English (teacher, department_head)
+      if (payload.gradeType === 'CC' && targetUser.role !== 'teacher') {
         console.error('[REQUEST] ❌ Invalid role for CC:', {
           gradeType: 'CC',
           targetRole: targetUser.role,
-          expectedRole: 'enseignant'
+          expectedRole: 'teacher'
         });
         return {
           success: false,
@@ -117,11 +118,11 @@ export async function createRequest(payload: CreateRequestPayload) {
         };
       }
 
-      if (payload.gradeType === 'SN' && targetUser.role !== 'responsable_pedagogique') {
+      if (payload.gradeType === 'SN' && targetUser.role !== 'department_head') {
         console.error('[REQUEST] ❌ Invalid role for SN:', {
           gradeType: 'SN',
           targetRole: targetUser.role,
-          expectedRole: 'responsable_pedagogique'
+          expectedRole: 'department_head'
         });
         return {
           success: false,
@@ -152,7 +153,8 @@ export async function createRequest(payload: CreateRequestPayload) {
       request_type: payload.type,
       title: finalTitle,
       description: payload.description,
-      department_code: user.departement?.code || 'N/A',
+      department_code: user.departement?.code || null,  // ✅ FIXED: Use null instead of 'N/A'
+      promotion_code: user.promotion?.code || null,  // ✨ NEW
       status: isAutoValidated ? 'validated' : 'submitted',        // ✅ Nouveau
       validation_status: isAutoValidated ? 'validated' : 'pending', // ✅ Nouveau
       grade_type: payload.gradeType || null,
@@ -165,6 +167,7 @@ export async function createRequest(payload: CreateRequestPayload) {
       request_type: requestData.request_type,
       title: requestData.title,
       department_code: requestData.department_code,
+      promotion_code: requestData.promotion_code,  // ✨ NEW
       status: requestData.status,
     });
 
@@ -283,42 +286,63 @@ export async function uploadRequestFiles(
   files: FormData
 ) {
   try {
+    console.log('[UPLOAD] Starting file upload for request:', requestId);
+    
     const user = await getUser();
     
     if (!user) {
+      console.error('[UPLOAD] ❌ User not authenticated');
       return {
         success: false,
         error: 'User not authenticated',
       };
     }
 
-    const supabase = await createClient();
+    console.log('[UPLOAD] User authenticated:', user.id);
+
+    // Use admin client for storage uploads (bypasses RLS)
+    const supabaseAdmin = createAdminClient();
     const uploadedFiles = [];
 
     // Process each file in FormData
     const fileEntries = files.getAll('files') as File[];
+    console.log('[UPLOAD] Files to process:', fileEntries.length);
     
     for (const file of fileEntries) {
       try {
+        console.log('[UPLOAD] Processing file:', { 
+          name: file.name, 
+          size: file.size, 
+          type: file.type 
+        });
+
         // Generate unique filename
         const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${file.name}`;
         const filePath = `${user.id}/${requestId}/${fileName}`;
 
-        // Upload to Supabase Storage
-        const { error: uploadError } = await supabase.storage
+        console.log('[UPLOAD] Generated path:', filePath);
+
+        // Upload to Supabase Storage using admin client (bypasses RLS)
+        const { error: uploadError, data: uploadData } = await supabaseAdmin.storage
           .from('request-attachments')
           .upload(filePath, file);
 
+        console.log('[UPLOAD] Storage upload result:', { 
+          error: uploadError?.message,
+          data: uploadData,
+        });
+
         if (uploadError) {
-          console.error('Upload error for file:', file.name, uploadError);
+          console.error('[UPLOAD] ❌ Upload error for file:', file.name, uploadError);
           continue;
         }
 
-        // Record attachment metadata
+        // Record attachment metadata (use regular client for database)
+        const supabase = await createClient();
         const { data: attachment, error: attachmentError } = await supabase
           .from('attachments')
           .insert({
-            request_id: requestId,
+            requete_id: requestId,
             file_name: file.name,
             file_path: filePath,
             file_size: file.size,
@@ -328,18 +352,28 @@ export async function uploadRequestFiles(
           .select()
           .single();
 
+        console.log('[UPLOAD] Database insert result:', {
+          error: attachmentError?.message,
+          data: attachment,
+        });
+
         if (attachmentError) {
-          console.error('Error recording attachment:', attachmentError);
+          console.error('[UPLOAD] ❌ Error recording attachment:', attachmentError);
           continue;
         }
 
         uploadedFiles.push(attachment);
-        console.log('✅ File uploaded:', file.name);
+        console.log('[UPLOAD] ✅ File uploaded:', file.name);
       } catch (fileError) {
-        console.error('Error processing file:', fileError);
+        console.error('[UPLOAD] ❌ Error processing file:', fileError);
         // Continue with next file
       }
     }
+
+    console.log('[UPLOAD] Upload summary:', {
+      attempted: fileEntries.length,
+      successful: uploadedFiles.length,
+    });
 
     if (uploadedFiles.length === 0) {
       return {
@@ -353,7 +387,7 @@ export async function uploadRequestFiles(
       data: uploadedFiles,
     };
   } catch (error) {
-    console.error('Error in uploadRequestFiles:', error);
+    console.error('[UPLOAD] ❌ Error in uploadRequestFiles:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'An error occurred',

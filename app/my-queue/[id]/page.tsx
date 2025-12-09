@@ -10,7 +10,7 @@ import type { Requete } from "@/lib/types";
 import DecisionCard from "./components/decision-card";
 import InfoCard from "./components/info-card";
 import RequestDetailsCard from "./components/request-details-card";
-import DocumentsTab from "./components/documents-tab";
+import DocumentViewer from "./components/document-viewer";
 import HistoryTab from "./components/history-tab";
 
 interface Student {
@@ -24,7 +24,7 @@ interface Student {
 
 interface Attachment {
   id: string;
-  request_id: string;
+  requete_id: string;
   file_name: string;
   file_path: string;
   file_size: number;
@@ -74,7 +74,7 @@ export default function TreatRequestPage() {
         const { data: atts, error: attError } = await supabase
           .from("attachments")
           .select("*")
-          .eq("request_id", requestId);
+          .eq("requete_id", requestId);
 
         if (!attError && atts) {
           setAttachments(atts);
@@ -190,7 +190,7 @@ export default function TreatRequestPage() {
               </TabsContent>
 
               <TabsContent value="documents" className="space-y-6 mt-4">
-                <DocumentsTab attachments={attachments} />
+                <DocumentViewer attachments={attachments} />
               </TabsContent>
 
               <TabsContent value="history" className="space-y-6 mt-4">

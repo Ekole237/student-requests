@@ -9,10 +9,11 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ArrowLeft, AlertCircle, FileText, Download } from "lucide-react";
 import { RequestStatus, ValidationStatus, FinalStatus, RequestTypeEnum, RequestType, GradeType } from "@/lib/types";
+import DocumentViewer from "@/app/my-queue/[id]/components/document-viewer";
 
 interface RequestAttachment {
   id: string;
-  request_id: string;
+  requete_id: string;
   file_name: string;
   file_size: number;
   file_path: string;
@@ -82,9 +83,9 @@ export default function RequestDetailPage() {
 
         // Fetch attachments
         const { data: attachmentData } = await supabase
-          .from("requetes_attachments")
+          .from("attachments")
           .select("*")
-          .eq("request_id", requestId)
+          .eq("requete_id", requestId)
           .order("created_at", { ascending: false });
 
         if (attachmentData) {
@@ -264,49 +265,7 @@ export default function RequestDetailPage() {
 
       {/* Attachments */}
       {attachments.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="w-5 h-5" />
-              Pièces Jointes ({attachments.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {attachments.map((attachment) => (
-                <div
-                  key={attachment.id}
-                  className="flex items-center justify-between p-3 bg-secondary/50 border rounded-lg hover:bg-secondary/80 transition-colors"
-                >
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <FileText className="h-5 w-5 text-blue-500 flex-shrink-0" />
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{attachment.file_name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {(attachment.file_size / (1024 * 1024)).toFixed(2)} MB
-                      </p>
-                    </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="flex-shrink-0"
-                    asChild
-                  >
-                    <a
-                      href={attachment.file_path}
-                      download={attachment.file_name}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <Download className="h-4 w-4" />
-                    </a>
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        <DocumentViewer attachments={attachments} />
       )}
     </div>
   );

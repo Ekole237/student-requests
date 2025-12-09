@@ -51,7 +51,7 @@ export default function TreatmentModal({
       const { data: docs, error: docsError } = await supabase
         .from("attachments")
         .select("*")
-        .eq("request_id", request.id);
+        .eq("requete_id", request.id);
 
       if (!docsError) {
         setAttachments(docs || []);
@@ -59,9 +59,9 @@ export default function TreatmentModal({
 
       // Load student info
       const { data: student, error: studentError } = await supabase
-        .from("users")
+        .from("profiles")
         .select("id, email, first_name, last_name")
-        .eq("id", request.student_id)
+        .eq("id", request.created_by)
         .single();
 
       if (!studentError) {
@@ -112,7 +112,7 @@ export default function TreatmentModal({
 
       // Create notification for student
       await supabase.from("notifications").insert({
-        user_id: request.student_id,
+        user_id: request.created_by,
         request_id: request.id,
         title: decision === "approve" ? "Requête approuvée" : "Requête rejetée",
         message:
@@ -165,8 +165,8 @@ export default function TreatmentModal({
           <TabsContent value="request" className="space-y-4 mt-4">
             <div className="space-y-3">
               <div>
-                <Label className="text-sm text-muted-foreground">Type</Label>
-                <Badge>{request.type}</Badge>
+                <p className="text-sm text-muted-foreground mb-1">Type</p>
+                <Badge>{request.request_type}</Badge>
               </div>
               <div>
                 <Label className="text-sm text-muted-foreground">Titre</Label>
@@ -212,7 +212,7 @@ export default function TreatmentModal({
                 </div>
                 <div>
                   <Label className="text-sm text-muted-foreground">ID Étudiant</Label>
-                  <p className="font-monospace font-semibold text-sm">{request.student_id}</p>
+                  <p className="font-monospace font-semibold text-sm">{request.created_by}</p>
                 </div>
               </div>
             ) : (

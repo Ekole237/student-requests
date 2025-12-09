@@ -5,31 +5,23 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, AlertCircle, FileText } from "lucide-react";
+import { getUser } from "@/lib/auth";
+import { requirePermission } from "@/lib/middleware/requirePermission";
 
 import ValidationList from "./components/validation-list";
 
 export default async function ValidationPage() {
-  const supabase = await createClient();
-
-  // Check authentication
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-
-  if (userError || !user) {
+  // Check authentication and permission
+  const user = await getUser();
+  
+  if (!user) {
     redirect("/auth/login");
   }
 
-  // Check role (only admin/secretary)
-  const { data: userRoles, error: rolesError } = await supabase
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", user.id);
+  // Vérifie que l'utilisateur a la permission de valider
+  requirePermission(user, "requetes:validate");
 
-  if (rolesError || !userRoles || !userRoles.some((ur) => ur.role === "admin")) {
-    redirect("/dashboard");
-  }
+  const supabase = await createClient();
 
   // Fetch all submitted requests
   const { data: requests, error: requestsError } = await supabase

@@ -4,6 +4,7 @@ import Link from "next/link";
 import clsx from "clsx";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import type { AppRole } from "@/lib/types";
 import {
   ChevronRight,
   LayoutDashboard,
@@ -27,7 +28,7 @@ interface SideNavigationProps {
   open: boolean;
   onClose: () => void;
   isAdmin: boolean;
-  userRole?: "student" | "teacher" | "rp" | "director" | "admin";
+  userRole?: AppRole;
 }
 
 export default function SideNavigation({
@@ -45,6 +46,11 @@ export default function SideNavigation({
 
   const navItems: NavItem[] = [
     {
+      name: "Accueil",
+      href: "/dashboard",
+      icon: <LayoutDashboard size={18} />,
+    },
+    {
       name: "Mon Profil",
       href: "/dashboard/profile",
       icon: <User size={18} />,
@@ -53,17 +59,17 @@ export default function SideNavigation({
       ? [
           {
             name: "Mes Requêtes",
-            href: "/dashboard",
+            href: "/dashboard/requests",
             icon: <List size={18} />,
           },
           {
             name: "Soumettre une Requête",
-            href: "/dashboard/submit",
+            href: "/requests/new",
             icon: <Plus size={18} />,
           },
         ]
       : []),
-    ...(userRole === "teacher" || userRole === "rp" || userRole === "director"
+    ...(userRole === "teacher" || userRole === "department_head"
       ? [
           {
             name: "Ma Queue de Traitement",

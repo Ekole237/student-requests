@@ -38,7 +38,7 @@ export default function RequestDetailsModal({
       const { data, error } = await supabase
         .from("attachments")
         .select("*")
-        .eq("request_id", request.id);
+        .eq("requete_id", request.id);
 
       if (!error) {
         setAttachments(data || []);
@@ -92,7 +92,7 @@ export default function RequestDetailsModal({
             <div className="space-y-3">
               <div>
                 <p className="text-sm text-muted-foreground mb-1">Type</p>
-                <Badge>{getTypeLabel(request.type)}</Badge>
+                <Badge>{getTypeLabel(request.request_type)}</Badge>
               </div>
 
               <div>

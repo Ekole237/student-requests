@@ -1,28 +1,24 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import type { Requete } from "@/lib/types";
+import { getUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 import AdminRequestList from "./components/admin-request-list";
 
 export default async function AdminDashboard() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getUser();
 
   if (!user) {
     return redirect("/auth/login");
   }
 
-  const { data: isAdmin, error: roleError } = await supabase.rpc("has_role", {
-    _user_id: user.id,
-    _role: "admin",
-  });
-
-  if (roleError || !isAdmin) {
+  // Check role from ENSPD API
+  if (user.role.name !== "admin") {
     return redirect("/dashboard");
   }
+
+  const supabase = await createClient();
 
   const { data: requetes, error } = await supabase
     .from("requetes")

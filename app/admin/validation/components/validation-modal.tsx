@@ -13,17 +13,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, AlertCircle, FileText, Download } from "lucide-react";
+import { CheckCircle2, AlertCircle, FileText, Download, Info } from "lucide-react";
 import type { Requete } from "@/lib/types";
 
 interface ValidationModalProps {
@@ -44,18 +37,23 @@ export default function ValidationModal({
   const supabase = createClient();
   const [decision, setDecision] = useState<ValidationDecision>(null);
   const [rejectionReason, setRejectionReason] = useState("");
-  const [routedToId, setRoutedToId] = useState<string>("");
-  const [routedToRole, setRoutedToRole] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<any[]>([]);
+
+  // ✅ NOUVEAU: Check if request is auto-validated (CC/SN)
+  const isAutoValidated = 
+    request.request_type === "grade_inquiry" && 
+    (request.grade_type === "CC" || request.grade_type === "SN") &&
+    request.status === "validated" &&
+    request.validation_status === "validated";
 
   // Load attachments
   const loadAttachments = async () => {
     const { data, error: err } = await supabase
       .from("attachments")
       .select("*")
-      .eq("request_id", request.id);
+      .eq("requete_id", request.id);
 
     if (err) {
       console.error("Error loading attachments:", err);
@@ -69,6 +67,11 @@ export default function ValidationModal({
   const handleOpenChange = (open: boolean) => {
     if (open && request.id) {
       loadAttachments();
+    } else {
+      // Reset on close
+      setDecision(null);
+      setRejectionReason("");
+      setError(null);
     }
   };
 
@@ -81,11 +84,6 @@ export default function ValidationModal({
 
     if (decision === "reject" && !rejectionReason.trim()) {
       setError("Veuillez spécifier le motif du rejet");
-      return;
-    }
-
-    if (decision === "approve" && !routedToId) {
-      setError("Veuillez sélectionner le destinataire");
       return;
     }
 
@@ -110,7 +108,7 @@ export default function ValidationModal({
 
         // Create notification for student
         await supabase.from("notifications").insert({
-          user_id: request.student_id,
+          user_id: request.created_by,
           request_id: request.id,
           title: "Requête rejetée",
           message: `Votre requête "${request.title}" a été rejetée. Motif: ${rejectionReason}`,
@@ -119,14 +117,13 @@ export default function ValidationModal({
 
         onValidate(updated);
       } else {
-        // Approve: route to destinataire
+        // Approve: just change validation_status (destinataire déjà assigné par étudiant)
         const { data: updated, error: err } = await supabase
           .from("requetes")
           .update({
             validation_status: "validated",
             status: "validated",
-            routed_to_id: routedToId,
-            routed_to_role: routedToRole,
+            // ✅ routed_to_id et routed_to_role IMMUABLES (définis par l'étudiant)
           })
           .eq("id", request.id)
           .select()
@@ -134,23 +131,27 @@ export default function ValidationModal({
 
         if (err) throw err;
 
-        // Create notification for student
-        await supabase.from("notifications").insert({
-          user_id: request.student_id,
-          request_id: request.id,
-          title: "Requête validée",
-          message: `Votre requête "${request.title}" a été validée et est en cours de traitement.`,
-          type: "request_validated",
-        });
+        // Create notification for student (only if not auto-validated)
+        if (!isAutoValidated) {
+          await supabase.from("notifications").insert({
+            user_id: request.created_by,
+            request_id: request.id,
+            title: "Requête validée",
+            message: `Votre requête "${request.title}" a été validée et est en cours de traitement.`,
+            type: "request_validated",
+          });
+        }
 
-        // Create notification for destinataire
-        await supabase.from("notifications").insert({
-          user_id: routedToId,
-          request_id: request.id,
-          title: "Nouvelle requête à traiter",
-          message: `Une nouvelle requête "${request.title}" vous a été assignée.`,
-          type: "request_assigned",
-        });
+        // Create notification for destinataire (only if not auto-validated)
+        if (!isAutoValidated && request.routed_to) {
+          await supabase.from("notifications").insert({
+            user_id: request.routed_to,
+            request_id: request.id,
+            title: "Nouvelle requête à traiter",
+            message: `Une nouvelle requête "${request.title}" vous a été assignée.`,
+            type: "request_assigned",
+          });
+        }
 
         onValidate(updated);
       }
@@ -159,13 +160,6 @@ export default function ValidationModal({
     } finally {
       setLoading(false);
     }
-  };
-
-  // Auto-route based on type
-  const getAutoRoute = () => {
-    // TODO: Implémenter logique de routage intelligent
-    // Pour maintenant, manuel
-    return null;
   };
 
   return (
@@ -181,6 +175,16 @@ export default function ValidationModal({
           </DialogDescription>
         </DialogHeader>
 
+        {/* ✅ NOUVEAU: Alert si auto-validée */}
+        {isAutoValidated && (
+          <Alert className="bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800">
+            <CheckCircle2 className="h-4 w-4 text-green-600" />
+            <AlertDescription className="text-green-800 dark:text-green-200">
+              ✅ Cette requête CC/SN a été auto-validée et envoyée directement au destinataire. Vous validez juste la conformité des documents.
+            </AlertDescription>
+          </Alert>
+        )}
+
         <Tabs defaultValue="info" className="w-full">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="info">Infos</TabsTrigger>
@@ -192,8 +196,8 @@ export default function ValidationModal({
           <TabsContent value="info" className="space-y-4 mt-4">
             <div className="space-y-3">
               <div>
-                <Label className="text-sm text-muted-foreground">Type</Label>
-                <Badge>{request.type}</Badge>
+                <p className="text-sm text-muted-foreground mb-1">Type</p>
+                <Badge>{request.request_type}</Badge>
               </div>
               <div>
                 <Label className="text-sm text-muted-foreground">Titre</Label>
@@ -209,9 +213,24 @@ export default function ValidationModal({
                   <Badge variant="outline">{request.grade_type}</Badge>
                 </div>
               )}
+              
+              {/* ✅ NOUVEAU: Afficher destinataire (lecture seule) */}
+              {request.routed_to && (
+                <div className="pt-3 border-t p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200">
+                  <Label className="text-sm text-muted-foreground">Destinataire</Label>
+                  <p className="font-semibold text-blue-900 dark:text-blue-200">
+                    {request.routed_to_role === "teacher" ? "Enseignant" : "Responsable Pédagogique"}
+                    {request.routed_to && ` - ${request.routed_to}`}
+                  </p>
+                  <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                    (Défini par l'étudiant, non modifiable)
+                  </p>
+                </div>
+              )}
+
               <div className="pt-3 border-t">
                 <Label className="text-sm text-muted-foreground">Étudiant</Label>
-                <p className="font-semibold">{request.student_id}</p>
+                <p className="font-semibold">{request.created_by}</p>
               </div>
               <div>
                 <Label className="text-sm text-muted-foreground">Soumise le</Label>
@@ -289,8 +308,6 @@ export default function ValidationModal({
                   variant={decision === "reject" ? "destructive" : "outline"}
                   onClick={() => {
                     setDecision("reject");
-                    setRoutedToId("");
-                    setRoutedToRole("");
                   }}
                   className="h-20 flex flex-col"
                 >
@@ -298,71 +315,30 @@ export default function ValidationModal({
                   <span>Rejeter</span>
                 </Button>
               </div>
+
+              {/* Reject: Reason */}
+              {decision === "reject" && (
+                <div className="space-y-4 p-4 bg-destructive/10 rounded-lg border border-destructive/50">
+                  <Label className="text-base font-semibold">Motif du rejet</Label>
+                  <Textarea
+                    placeholder="Décrivez le motif du rejet (ex: Documents manquants, Fichier corrompu, Mauvais format, etc.)"
+                    value={rejectionReason}
+                    onChange={(e) => setRejectionReason(e.target.value)}
+                    rows={4}
+                    maxLength={500}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {rejectionReason.length}/500 caractères
+                  </p>
+                  <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      L'étudiant recevra ce motif et pourra resoummettre
+                    </AlertDescription>
+                  </Alert>
+                </div>
+              )}
             </div>
-
-            {/* Approve: Select destinataire */}
-            {decision === "approve" && (
-              <div className="space-y-4 p-4 bg-secondary/30 rounded-lg border">
-                <Label className="text-base font-semibold">Destinataire</Label>
-                <p className="text-sm text-muted-foreground">
-                  Sélectionnez qui doit traiter cette requête
-                </p>
-
-                <Select value={routedToRole} onValueChange={setRoutedToRole}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionnez le type de destinataire" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="teacher">Enseignant (CC)</SelectItem>
-                    <SelectItem value="department_head">Responsable Pédagogique (SN)</SelectItem>
-                    <SelectItem value="director">Directeur</SelectItem>
-                    <SelectItem value="member">Autre Membre</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                {routedToRole && (
-                  <div>
-                    <Label className="text-sm">Utilisateur spécifique</Label>
-                    <p className="text-xs text-muted-foreground mb-2">
-                      TODO: Liste dynamique selon le rôle
-                    </p>
-                    <Select value={routedToId} onValueChange={setRoutedToId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Sélectionnez un utilisateur" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {/* TODO: Fetch users by role from DB */}
-                        <SelectItem value="demo-user-1">Utilisateur 1 (Demo)</SelectItem>
-                        <SelectItem value="demo-user-2">Utilisateur 2 (Demo)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Reject: Reason */}
-            {decision === "reject" && (
-              <div className="space-y-4 p-4 bg-destructive/10 rounded-lg border border-destructive/50">
-                <Label className="text-base font-semibold">Motif du rejet</Label>
-                <Textarea
-                  placeholder="Décrivez le motif du rejet (ex: Documents manquants, Fichier corrompu, Mauvais format, etc.)"
-                  value={rejectionReason}
-                  onChange={(e) => setRejectionReason(e.target.value)}
-                  rows={4}
-                  maxLength={500}
-                />
-                <p className="text-xs text-muted-foreground">
-                  {rejectionReason.length}/500 caractères
-                </p>
-                <Alert>
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    L'étudiant recevra ce motif et pourra resoummettre
-                  </AlertDescription>
-                </Alert>
-              </div>
-            )}
           </TabsContent>
         </Tabs>
 

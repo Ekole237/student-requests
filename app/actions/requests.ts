@@ -1,0 +1,497 @@
+'use server';
+
+import { getUser } from '@/lib/auth';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
+import { logRequestAction } from '@/lib/audit';
+
+export interface CreateRequestPayload {
+  type: string;
+  title: string;
+  description: string;
+  gradeType?: string | null;
+  subcategory?: string | null;
+  routed_to?: string;             // ID du destinataire (enseignant/RP)
+}
+
+/**
+ * Create a request for the authenticated user
+ * Uses Adonis authentication, not Supabase Auth
+ */
+export async function createRequest(payload: CreateRequestPayload) {
+  const createStartTime = Date.now();
+  console.log('[REQUEST] Starting request creation...');
+  
+  try {
+    // Get authenticated user from Adonis
+    console.log('[REQUEST] Fetching authenticated user...');
+    const user = await getUser();
+    
+    if (!user) {
+      console.error('[REQUEST] ❌ User not authenticated');
+      return {
+        success: false,
+        error: 'User not authenticated',
+      };
+    }
+
+    console.log('[REQUEST] ✅ User authenticated:', {
+      id: user.id,
+      email: user.email,
+      role: user.role?.name,
+    });
+
+    // Validate input
+    if (!payload.type) {
+      console.error('[REQUEST] ❌ Request type is required');
+      return { success: false, error: 'Request type is required' };
+    }
+    if (!payload.title?.trim()) {
+      console.error('[REQUEST] ❌ Title is required');
+      return { success: false, error: 'Title is required' };
+    }
+    if (!payload.description?.trim()) {
+      console.error('[REQUEST] ❌ Description is required');
+      return { success: false, error: 'Description is required' };
+    }
+
+    console.log('[REQUEST] ✅ Validation passed:', {
+      type: payload.type,
+      title: payload.title,
+      hasDescription: !!payload.description,
+    });
+
+    // Get Supabase client for server-side operations
+    console.log('[REQUEST] Creating Supabase client...');
+    const supabase = await createClient();
+
+    // Build title with subcategory if applicable
+    let finalTitle = payload.title;
+    if (payload.type === 'grade_inquiry' && payload.gradeType === 'CC' && payload.subcategory) {
+      const subcategoryLabels: Record<string, string> = {
+        missing: 'Absence de note',
+        error: 'Erreur de note',
+      };
+      finalTitle = `${payload.title} (${subcategoryLabels[payload.subcategory] || payload.subcategory})`;
+      console.log('[REQUEST] Title modified with subcategory:', finalTitle);
+    }
+
+    // ✅ NOUVEAU: Valider routed_to ID et rôle AVANT création
+    if (payload.routed_to) {
+      console.log('[REQUEST] Validating routed_to:', payload.routed_to);
+      
+      const { data: targetUser, error: targetError } = await supabase
+        .from('users')
+        .select('id, role, is_active')
+        .eq('id', payload.routed_to)
+        .single();
+
+      if (targetError || !targetUser) {
+        console.error('[REQUEST] ❌ Invalid routed_to ID:', {
+          routed_to: payload.routed_to,
+          error: targetError?.message
+        });
+        return {
+          success: false,
+          error: 'Enseignant/Responsable sélectionné n\'existe pas',
+        };
+      }
+
+      if (!targetUser.is_active) {
+        console.error('[REQUEST] ❌ routed_to user is inactive:', payload.routed_to);
+        return {
+          success: false,
+          error: 'Enseignant/Responsable est inactif',
+        };
+      }
+
+      // Valider le rôle basé sur le grade_type
+      // Note: Supabase roles are in English (teacher, department_head)
+      if (payload.gradeType === 'CC' && targetUser.role !== 'teacher') {
+        console.error('[REQUEST] ❌ Invalid role for CC:', {
+          gradeType: 'CC',
+          targetRole: targetUser.role,
+          expectedRole: 'teacher'
+        });
+        return {
+          success: false,
+          error: 'Pour CC, vous devez choisir un Enseignant',
+        };
+      }
+
+      if (payload.gradeType === 'SN' && targetUser.role !== 'department_head') {
+        console.error('[REQUEST] ❌ Invalid role for SN:', {
+          gradeType: 'SN',
+          targetRole: targetUser.role,
+          expectedRole: 'department_head'
+        });
+        return {
+          success: false,
+          error: 'Pour SN, vous devez choisir un Responsable Pédagogique',
+        };
+      }
+
+      console.log('[REQUEST] ✅ routed_to validation passed:', {
+        userId: targetUser.id,
+        role: targetUser.role,
+        gradeType: payload.gradeType
+      });
+    }
+
+    // ✅ NOUVEAU: Déterminer si auto-validation (CC/SN seulement)
+    const isAutoValidated = 
+      payload.type === 'grade_inquiry' && 
+      (payload.gradeType === 'CC' || payload.gradeType === 'SN');
+    
+    console.log('[REQUEST] Auto-validation check:', {
+      type: payload.type,
+      gradeType: payload.gradeType,
+      isAutoValidated,
+    });
+
+    const requestData = {
+      created_by: user.id.toString(),
+      request_type: payload.type,
+      title: finalTitle,
+      description: payload.description,
+      department_code: user.departement?.code || null,  // ✅ FIXED: Use null instead of 'N/A'
+      promotion_code: user.promotion?.code || null,  // ✨ NEW
+      status: isAutoValidated ? 'validated' : 'submitted',        // ✅ Nouveau
+      validation_status: isAutoValidated ? 'validated' : 'pending', // ✅ Nouveau
+      grade_type: payload.gradeType || null,
+      priority: 'normal',
+      routed_to: payload.routed_to || null,                      // ✅ Nouveau - ID du destinataire
+    };
+
+    console.log('[REQUEST] Inserting request with data:', {
+      created_by: requestData.created_by,
+      request_type: requestData.request_type,
+      title: requestData.title,
+      department_code: requestData.department_code,
+      promotion_code: requestData.promotion_code,  // ✨ NEW
+      status: requestData.status,
+    });
+
+    // Create request in Supabase with Adonis user ID
+    const { data: request, error: requestError } = await supabase
+      .from('requetes')
+      .insert(requestData)
+      .select()
+      .single();
+
+    if (requestError) {
+      console.error('[REQUEST] ❌ Error creating request:', {
+        message: requestError.message,
+        code: requestError.code,
+        details: requestError.details,
+      });
+      return {
+        success: false,
+        error: requestError.message || 'Failed to create request',
+      };
+    }
+
+    console.log('✅ [REQUEST] Request created successfully:', {
+      id: request.id,
+      request_type: request.request_type,
+      createdBy: request.created_by,
+    });
+
+    // ✅ Log audit trail
+    await logRequestAction(
+      request.id,
+      'create',
+      user.id.toString(),
+      `${payload.type} (${payload.gradeType || 'N/A'}) routed to ${payload.routed_to || 'NONE'}`
+    );
+
+    // Create notification for student
+    console.log('[REQUEST] Creating notification...');
+    try {
+      const notificationMessage = isAutoValidated
+        ? `Votre requête "${finalTitle}" a été envoyée directement au destinataire.`
+        : `Votre requête "${finalTitle}" a été soumise et sera vérifiée par l'administration.`;
+
+      const { data: notification, error: notificationError } = await supabase
+        .from('notifications')
+        .insert({
+          user_id: user.id.toString(),
+          requete_id: request.id,
+          title: isAutoValidated ? 'Requête envoyée' : 'Requête soumise',
+          message: notificationMessage,
+          type: 'request_created',
+          read: false,
+        })
+        .select();
+
+      if (notificationError) {
+        console.warn('[REQUEST] ⚠️  Failed to create notification:', {
+          message: notificationError.message,
+          code: notificationError.code,
+        });
+      } else {
+        console.log('✅ [REQUEST] Notification created');
+      }
+    } catch (notificationError) {
+      console.error('[REQUEST] ⚠️  Notification creation error:', notificationError);
+      // Don't fail the whole operation if notification fails
+    }
+
+    // ✅ NOUVEAU: Créer notification IMMÉDIATE pour enseignant/RP si auto-validé
+    if (isAutoValidated && payload.routed_to) {
+      console.log('[REQUEST] Creating notification for destinataire (auto-validated)...');
+      try {
+        const { error: destNotificationError } = await supabase
+          .from('notifications')
+          .insert({
+            user_id: payload.routed_to,
+            requete_id: request.id,
+            title: 'Nouvelle requête à traiter',
+            message: `Une nouvelle requête de demande de note "${finalTitle}" vous a été assignée.`,
+            type: 'request_assigned',
+            read: false,
+          });
+
+        if (destNotificationError) {
+          console.warn('[REQUEST] ⚠️  Failed to create destinataire notification:', destNotificationError);
+        } else {
+          console.log('✅ [REQUEST] Destinataire notification created');
+        }
+      } catch (err) {
+        console.error('[REQUEST] ⚠️  Destinataire notification error:', err);
+      }
+    }
+
+    const createDuration = Date.now() - createStartTime;
+    console.log(`✅ [REQUEST] Request creation completed in ${createDuration}ms`);
+
+    return {
+      success: true,
+      data: request,
+    };
+  } catch (error) {
+    const createDuration = Date.now() - createStartTime;
+    console.error(`[REQUEST] ❌ Error in createRequest (${createDuration}ms):`, error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'An error occurred',
+    };
+  }
+}
+
+/**
+ * Upload files for a request
+ */
+export async function uploadRequestFiles(
+  requestId: string,
+  files: FormData
+) {
+  try {
+    console.log('[UPLOAD] Starting file upload for request:', requestId);
+    
+    const user = await getUser();
+    
+    if (!user) {
+      console.error('[UPLOAD] ❌ User not authenticated');
+      return {
+        success: false,
+        error: 'User not authenticated',
+      };
+    }
+
+    console.log('[UPLOAD] User authenticated:', user.id);
+
+    // Use admin client for storage uploads (bypasses RLS)
+    const supabaseAdmin = createAdminClient();
+    const uploadedFiles = [];
+
+    // Process each file in FormData
+    const fileEntries = files.getAll('files') as File[];
+    console.log('[UPLOAD] Files to process:', fileEntries.length);
+    
+    for (const file of fileEntries) {
+      try {
+        console.log('[UPLOAD] Processing file:', { 
+          name: file.name, 
+          size: file.size, 
+          type: file.type 
+        });
+
+        // Generate unique filename
+        const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${file.name}`;
+        const filePath = `${user.id}/${requestId}/${fileName}`;
+
+        console.log('[UPLOAD] Generated path:', filePath);
+
+        // Upload to Supabase Storage using admin client (bypasses RLS)
+        const { error: uploadError, data: uploadData } = await supabaseAdmin.storage
+          .from('request-attachments')
+          .upload(filePath, file);
+
+        console.log('[UPLOAD] Storage upload result:', { 
+          error: uploadError?.message,
+          data: uploadData,
+        });
+
+        if (uploadError) {
+          console.error('[UPLOAD] ❌ Upload error for file:', file.name, uploadError);
+          continue;
+        }
+
+        // Record attachment metadata (use regular client for database)
+        const supabase = await createClient();
+        const { data: attachment, error: attachmentError } = await supabase
+          .from('attachments')
+          .insert({
+            requete_id: requestId,
+            file_name: file.name,
+            file_path: filePath,
+            file_size: file.size,
+            file_type: file.type,
+            uploaded_by: user.id.toString(),
+          })
+          .select()
+          .single();
+
+        console.log('[UPLOAD] Database insert result:', {
+          error: attachmentError?.message,
+          data: attachment,
+        });
+
+        if (attachmentError) {
+          console.error('[UPLOAD] ❌ Error recording attachment:', attachmentError);
+          continue;
+        }
+
+        uploadedFiles.push(attachment);
+        console.log('[UPLOAD] ✅ File uploaded:', file.name);
+      } catch (fileError) {
+        console.error('[UPLOAD] ❌ Error processing file:', fileError);
+        // Continue with next file
+      }
+    }
+
+    console.log('[UPLOAD] Upload summary:', {
+      attempted: fileEntries.length,
+      successful: uploadedFiles.length,
+    });
+
+    if (uploadedFiles.length === 0) {
+      return {
+        success: false,
+        error: 'No files were uploaded successfully',
+      };
+    }
+
+    return {
+      success: true,
+      data: uploadedFiles,
+    };
+  } catch (error) {
+    console.error('[UPLOAD] ❌ Error in uploadRequestFiles:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'An error occurred',
+    };
+  }
+}
+
+/**
+ * Get requests for the authenticated user
+ */
+export async function getUserRequests() {
+  try {
+    const user = await getUser();
+    
+    if (!user) {
+      return {
+        success: false,
+        error: 'User not authenticated',
+      };
+    }
+
+    const supabase = await createClient();
+
+    const { data: requests, error } = await supabase
+      .from('requetes')
+      .select('*')
+      .eq('student_id', user.id.toString())
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching requests:', error);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+
+    return {
+      success: true,
+      data: requests,
+    };
+  } catch (error) {
+    console.error('Error in getUserRequests:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'An error occurred',
+    };
+  }
+}
+
+/**
+ * Get request details with attachments
+ */
+export async function getRequestDetails(requestId: string) {
+  try {
+    const user = await getUser();
+    
+    if (!user) {
+      return {
+        success: false,
+        error: 'User not authenticated',
+      };
+    }
+
+    const supabase = await createClient();
+
+    // Get request
+    const { data: request, error: requestError } = await supabase
+      .from('requetes')
+      .select('*')
+      .eq('id', requestId)
+      .eq('created_by', user.id.toString())
+      .single();
+
+    if (requestError) {
+      return {
+        success: false,
+        error: 'Request not found',
+      };
+    }
+
+    // Get attachments
+    const { data: attachmentsData, error: attachmentError } = await supabase
+      .from('attachments')
+      .select('*')
+      .eq('requete_id', requestId)
+      .order('created_at', { ascending: false });
+
+    if (attachmentError) {
+      console.error('Error fetching attachments:', attachmentError);
+    }
+
+    return {
+      success: true,
+      data: {
+        request,
+        attachments: attachmentsData || [],
+      },
+    };
+  } catch (error) {
+    console.error('Error in getRequestDetails:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'An error occurred',
+    };
+  }
+}

@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { getUser } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -12,59 +13,126 @@ export const dynamic = "force-dynamic";
 export default async function MyQueuePage() {
   const supabase = await createClient();
 
-  // Check authentication
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
+  // Check authentication with Adonis
+  const user = await getUser();
 
-  if (userError || !user) {
+  if (!user) {
     redirect("/auth/login");
   }
 
-  // Get user roles
-  const { data: userRoles, error: rolesError } = await supabase
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", user.id);
-
-  if (rolesError || !userRoles || userRoles.length === 0) {
-    redirect("/dashboard");
-  }
-
   // Check if user has treatment role
-  const userRole = userRoles[0]?.role;
-  const validRoles = ["teacher", "department_head", "director", "member"];
+  const validRoles = ["enseignant", "responsable_pedagogique", "directeur", "member"];
 
-  if (!validRoles.includes(userRole)) {
+  if (!validRoles.includes(user.role?.name || "")) {
     redirect("/dashboard");
   }
 
-  // Fetch requests routed to this user
-  const { data: requests, error: requestsError } = await supabase
+  // Fetch all validated requests from the same filière/promotion
+  // RPs can see:
+  // 1. Requests routed directly to them
+  // 2. Requests routed to any teacher in their filière/promotion
+  
+  const userPromotionCode = user.promotion?.code || "";
+  const userDepartmentCode = user.departement?.code || "";
+  
+  console.log("🔍 /my-queue DEBUG: User info:", {
+    userId: user.id,
+    userRole: user.role?.name,
+    userPromotion: user.promotion?.code,
+    userDepartment: user.departement?.code,
+    userPromotionCode,
+  });
+  
+  // First, get all requests from this promotion
+  // Only get validated requests that haven't been resolved (final_status IS NULL)
+  // Filter by department_code (filière) since that's what's in Supabase
+  let query = supabase
     .from("requetes")
     .select("*")
-    .eq("routed_to_id", user.id)
     .eq("status", "validated")
+    .is("final_status", null);  // Only pending requests (not yet resolved)
+  
+  // Filter by department if available, else by promotion
+  if (userDepartmentCode) {
+    query = query.eq("department_code", userDepartmentCode);
+  } else if (userPromotionCode) {
+    query = query.eq("promotion_code", userPromotionCode);
+  }
+  
+  const { data: allPromotionRequests, error: requestsError } = await query
     .order("created_at", { ascending: false });
+
+  console.log("🔍 /my-queue DEBUG: Query results:", {
+    promotion_code: userPromotionCode,
+    count: allPromotionRequests?.length || 0,
+    error: requestsError?.message,
+    sample: allPromotionRequests?.[0],
+  });
 
   if (requestsError) {
     console.error("Error fetching requests:", requestsError);
   }
 
-  const allRequests = requests || [];
-  const pendingCount = allRequests.filter((r) => r.final_status === "pending").length;
-  const approvedCount = allRequests.filter((r) => r.final_status === "approved").length;
-  const rejectedCount = allRequests.filter((r) => r.final_status === "rejected").length;
+  // Get all teachers in the same promotion (for checking if routed_to is a teacher)
+  let teacherQuery = supabase
+    .from("users")
+    .select("id")
+    .eq("role", "teacher")
+    .eq("is_active", true);
+  
+  // Filter by department if available, else by promotion
+  if (userDepartmentCode) {
+    teacherQuery = teacherQuery.eq("department_code", userDepartmentCode);
+  } else if (userPromotionCode) {
+    teacherQuery = teacherQuery.eq("promotion_code", userPromotionCode);
+  }
+  
+  const { data: promotionTeachers, error: teachersError } = await teacherQuery;
+
+  const teacherIds = new Set(promotionTeachers?.map(t => t.id) || []);
+
+  // Filter requests based on user's authority
+  const userId = user.id.toString(); // Convert Adonis ID to string
+  const requests = (allPromotionRequests || []).filter(req => {
+    // Enseignant can only see requests routed directly to them
+    if (user.role?.name === "enseignant") {
+      return req.routed_to === userId;
+    }
+    
+    // RP can see requests routed directly to them
+    if (req.routed_to === userId) {
+      return true;
+    }
+    
+    // RP can also see requests routed to any teacher in their filière
+    if (req.routed_to && teacherIds.has(req.routed_to)) {
+      return true;
+    }
+    
+    return false;
+  });
+
+  console.log("🔍 /my-queue DEBUG: After filtering:", {
+    totalFetched: allPromotionRequests?.length || 0,
+    filteredRequests: requests.length,
+    userId,
+    userRole: user.role?.name,
+    teacherIdsCount: teacherIds.size,
+    sampleRequest: requests[0],
+  });
+  // final_status is NULL for pending (not yet decided), 'approved' or 'rejected' when decided
+  const pendingCount = requests.filter((r) => r.final_status === null).length;
+  const approvedCount = requests.filter((r) => r.final_status === "approved").length;
+  const rejectedCount = requests.filter((r) => r.final_status === "rejected").length;
 
   const getRoleLabel = () => {
     const labels: Record<string, string> = {
-      teacher: "👨‍🏫 Enseignant",
-      department_head: "📊 Responsable Pédagogique",
-      director: "👔 Directeur",
+      enseignant: "👨‍🏫 Enseignant",
+      responsable_pedagogique: "📊 Responsable Pédagogique",
+      directeur: "👔 Directeur",
       member: "👤 Membre",
     };
-    return labels[userRole] || userRole;
+    return labels[user.role?.name || ""] || user.role?.name || "Utilisateur";
   };
 
   return (
@@ -91,7 +159,7 @@ export default async function MyQueuePage() {
             <CardContent className="pt-6">
               <div className="text-center">
                 <p className="text-sm text-muted-foreground mb-2">Total</p>
-                <p className="text-4xl font-bold">{allRequests.length}</p>
+                <p className="text-4xl font-bold">{requests.length}</p>
               </div>
             </CardContent>
           </Card>
@@ -139,7 +207,7 @@ export default async function MyQueuePage() {
         )}
 
         {/* Empty State */}
-        {allRequests.length === 0 ? (
+        {requests.length === 0 ? (
           <Card>
             <CardContent className="pt-12 pb-12">
               <div className="text-center space-y-3">
@@ -152,7 +220,7 @@ export default async function MyQueuePage() {
             </CardContent>
           </Card>
         ) : (
-          <QueueList requests={allRequests} userRole={userRole} />
+          <QueueList requests={requests} userRole={user.role?.name || ""} />
         )}
       </div>
     </div>

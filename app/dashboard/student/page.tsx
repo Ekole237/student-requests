@@ -38,7 +38,7 @@ export default async function StudentDashboardPage() {
   const { data: requests, error: requestsError } = await supabase
     .from("requetes")
     .select("*")
-    .eq("student_id", user.id)
+    .eq("created_by", user.id)
     .order("created_at", { ascending: false });
 
   if (requestsError) {

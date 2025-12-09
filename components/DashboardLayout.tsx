@@ -4,6 +4,7 @@ import { useState, ReactNode, useEffect, Suspense } from "react";
 import SideNavigation from "./SideNavigation";
 import Navbar from "./NavBar";
 import Breadcrumb from "./Breadcrumb";
+import type { AppRole } from "@/lib/types";
 import { useUserStore } from "@/stores/user";
 
 function DashboardContent({ children }: { children: ReactNode }) {
@@ -20,7 +21,7 @@ function DashboardContent({ children }: { children: ReactNode }) {
         open={open} 
         onClose={() => setOpen(false)} 
         isAdmin={isAdmin}
-        userRole={(userRole || "student") as "student" | "teacher" | "rp" | "director" | "admin"}
+        userRole={(userRole || "student") as AppRole}
       />
 
       <div className="flex-1 flex flex-col">

@@ -121,7 +121,7 @@ export default function RequestsList({ requests }: RequestsListProps) {
 
                 {/* Badges */}
                 <div className="flex items-center gap-2 mb-3 flex-wrap">
-                  <Badge variant="secondary">{getTypeLabel(request.type)}</Badge>
+                  <Badge variant="secondary">{getTypeLabel(request.request_type)}</Badge>
                   <Badge variant="outline">
                     {getStatusLabel(request.status, request.validation_status)}
                   </Badge>

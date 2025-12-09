@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createRequest, uploadRequestFiles } from "@/app/actions/requests";
+import { getCurrentUser } from "@/app/actions/user";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +22,8 @@ import { RequestType, RequestTypeEnum, GradeType } from "@/lib/types";
 import { useRouter } from "next/navigation";
 import { Upload, X, CheckCircle2, AlertCircle, FileText } from "lucide-react";
 import { z } from "zod";
+import { useUserStore } from "@/stores/user";
+import { PermissionGate } from "@/components/PermissionGate";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const MAX_FILES = 5;
@@ -40,22 +44,114 @@ const fileSchema = z.instanceof(File).refine((file) => file.size <= MAX_FILE_SIZ
 
 type SubcategoryType = "missing" | "error" | "other" | null;
 
+interface User {
+  id: string;
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+}
+
 export default function NewRequest() {
   const router = useRouter();
   const supabase = createClient();
+  const { hasPermission } = useUserStore();
 
+  // Initialize all hooks at the top level
   const [formData, setFormData] = useState({
     type: "" as RequestTypeEnum | "",
     gradeType: null as GradeType,
     subcategory: null as SubcategoryType,
     title: "",
     description: "",
+    routed_to: "",             // ✅ NOUVEAU: ID du destinataire
   });
 
   const [files, setFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [descriptionLineCount, setDescriptionLineCount] = useState(0);
+  
+  // ✅ NOUVEAU: Listes d'utilisateurs
+  const [teachers, setTeachers] = useState<User[]>([]);
+  const [responsablePedagogiques, setResponsablePedagogiques] = useState<User[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [userPromotionCode, setUserPromotionCode] = useState<string | null>(null);
+
+  // ✅ NOUVEAU: Charger les enseignants et RP au montage
+  useEffect(() => {
+    const loadUsers = async () => {
+      setLoadingUsers(true);
+      try {
+        // Récupérer l'utilisateur actuel pour avoir son code de promotion
+        const currentUser = await getCurrentUser();
+        const promotionCode = currentUser?.promotion?.code || null;
+        setUserPromotionCode(promotionCode);
+
+        // Charger enseignants de la même filière/promotion
+        let teacherQuery = supabase
+          .from("users")
+          .select("id, email, first_name, last_name")
+          .eq("role", "teacher")
+          .eq("is_active", true);
+
+        // Filtrer par promotion si l'étudiant en a une
+        if (promotionCode) {
+          teacherQuery = teacherQuery.eq("promotion_code", promotionCode);
+        }
+
+        const { data: teacherUsers, error: teacherError } = await teacherQuery;
+
+        if (!teacherError && teacherUsers) {
+          setTeachers(teacherUsers);
+        }
+
+        // Charger responsables pédagogiques de la même filière/promotion
+        let rpQuery = supabase
+          .from("users")
+          .select("id, email, first_name, last_name")
+          .eq("role", "department_head")
+          .eq("is_active", true);
+
+        // Filtrer par promotion si l'étudiant en a une
+        if (promotionCode) {
+          rpQuery = rpQuery.eq("promotion_code", promotionCode);
+        }
+
+        const { data: rpUsers, error: rpError } = await rpQuery;
+
+        if (!rpError && rpUsers) {
+          setResponsablePedagogiques(rpUsers);
+        }
+      } catch (err) {
+        console.error("Error loading users:", err);
+      } finally {
+        setLoadingUsers(false);
+      }
+    };
+
+    loadUsers();
+  }, [supabase]);
+
+  // Check permission to create request - after all hooks
+  if (!hasPermission('requetes:create')) {
+    return (
+      <div className="min-h-screen bg-background py-8 px-4">
+        <div className="max-w-2xl mx-auto">
+          <Card className="border-red-200 bg-red-50/50 dark:bg-red-950/10">
+            <CardContent className="pt-12 pb-12">
+              <div className="text-center space-y-3">
+                <AlertCircle className="h-12 w-12 mx-auto text-red-600" />
+                <h3 className="text-lg font-semibold">Accès Refusé</h3>
+                <p className="text-muted-foreground">
+                  Vous n'avez pas la permission de créer une requête
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -82,6 +178,7 @@ export default function NewRequest() {
       type: value as RequestTypeEnum | "",
       gradeType: null,
       subcategory: null,
+      routed_to: "",            // ✅ NOUVEAU: Reset destinataire
     }));
     setError(null);
   };
@@ -91,6 +188,7 @@ export default function NewRequest() {
       ...prev,
       gradeType: value,
       subcategory: null,
+      routed_to: "",  // Reset la sélection
     }));
   };
 
@@ -166,79 +264,66 @@ export default function NewRequest() {
       return;
     }
 
+    // ✅ NOUVEAU: Vérifier la sélection du destinataire pour les demandes de note
+    if (formData.type === "grade_inquiry" && !formData.routed_to) {
+      const roleLabel = formData.gradeType === "CC" ? "enseignant" : "responsable pédagogique";
+      setError(`Please select an ${roleLabel}`);
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("User not authenticated.");
+      // Call server action to create request
+      const result = await createRequest({
+        type: formData.type as string,
+        title: formData.title,
+        description: formData.description,
+        gradeType: formData.gradeType,
+        subcategory: formData.subcategory,
+        routed_to: formData.routed_to,             // ✅ NOUVEAU
+      });
 
-      let titleToUse = formData.title;
-      if (formData.type === "grade_inquiry" && formData.gradeType === "CC" && formData.subcategory) {
-        const subcategoryLabels: Record<string, string> = {
-          missing: "Absence de note",
-          error: "Erreur de note",
-        };
-        titleToUse = `${formData.title} (${subcategoryLabels[formData.subcategory] || formData.subcategory})`;
+      if (!result.success) {
+        setError(result.error || "Failed to create request");
+        setLoading(false);
+        return;
       }
 
-      const { data: request, error: requestError } = await supabase
-        .from("requetes")
-        .insert({
-          student_id: user.id,
-          type: formData.type,
-          title: titleToUse,
-          description: formData.description,
-          status: "submitted",
-          validation_status: "pending",
-          grade_type: formData.gradeType,
-          priority: "normal",
-        })
-        .select()
-        .single();
+      const requestId = result.data.id;
+      console.log('✅ Request created:', requestId);
 
-      if (requestError) throw requestError;
-
-      // Upload files
+      // Upload files if any
       if (files.length > 0) {
-        for (const file of files) {
-          const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${file.name}`;
-          const filePath = `${user.id}/${request.id}/${fileName}`;
+        console.log('[CLIENT] 📤 Uploading', files.length, 'files...');
+        const formDataFile = new FormData();
+        files.forEach((file) => {
+          console.log('[CLIENT] Adding file to FormData:', { 
+            name: file.name, 
+            size: file.size, 
+            type: file.type 
+          });
+          formDataFile.append('files', file);
+        });
 
-          const { error: uploadError } = await supabase.storage
-            .from("request-attachments")
-            .upload(filePath, file);
-
-          if (uploadError) throw uploadError;
-
-          const { error: attachmentError } = await supabase
-            .from("attachments")
-            .insert({
-              request_id: request.id,
-              file_name: file.name,
-              file_path: filePath,
-              file_size: file.size,
-              file_type: file.type,
-              uploaded_by: user.id,
-            });
-
-          if (attachmentError) throw attachmentError;
+        console.log('[CLIENT] Calling uploadRequestFiles server action...');
+        const uploadResult = await uploadRequestFiles(requestId, formDataFile);
+        
+        console.log('[CLIENT] Upload result:', uploadResult);
+        
+        if (!uploadResult.success) {
+          console.warn('[CLIENT] ⚠️ File upload warning:', uploadResult.error);
+          // Don't fail the request if files fail to upload
+        } else if (uploadResult.data) {
+          console.log('[CLIENT] ✅ Files uploaded:', uploadResult.data.length);
         }
       }
 
-      // Create notification for student
-      await supabase.from("notifications").insert({
-        user_id: user.id,
-        request_id: request.id,
-        title: "Requête soumise",
-        message: `Votre requête "${formData.title}" a été soumise avec succès et sera vérifiée par l'administration.`,
-        type: "request_created",
-      });
-
+      // Success - redirect to dashboard
       router.push("/dashboard");
     } catch (err: unknown) {
       setError((err as Error).message || "An error occurred while creating the request.");
-    } finally {
       setLoading(false);
     }
   };
@@ -278,9 +363,13 @@ export default function NewRequest() {
                 <Label htmlFor="type" className="text-base font-semibold">
                   Type de Requête *
                 </Label>
-                <Select value={formData.type} onValueChange={handleTypeChange}>
-                  <SelectTrigger id="type">
-                    <SelectValue placeholder="Sélectionnez le type de requête" />
+                <Select value={formData.type || ""} onValueChange={handleTypeChange}>
+                  <SelectTrigger id="type" className="w-full">
+                    {formData.type ? (
+                      <SelectValue />
+                    ) : (
+                      <span className="text-muted-foreground">Sélectionnez le type de requête</span>
+                    )}
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="grade_inquiry">
@@ -318,8 +407,12 @@ export default function NewRequest() {
                     value={formData.gradeType || ""} 
                     onValueChange={(value) => handleGradeTypeChange(value as GradeType)}
                   >
-                    <SelectTrigger id="gradeType">
-                      <SelectValue placeholder="Sélectionnez CC ou SN" />
+                    <SelectTrigger id="gradeType" className="w-full">
+                      {formData.gradeType ? (
+                        <SelectValue />
+                      ) : (
+                        <span className="text-muted-foreground">Sélectionnez CC ou SN</span>
+                      )}
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="CC">
@@ -340,8 +433,12 @@ export default function NewRequest() {
                     Nature du Problème *
                   </Label>
                   <Select value={formData.subcategory || ""} onValueChange={handleSubcategoryChange}>
-                    <SelectTrigger id="subcategory">
-                      <SelectValue placeholder="Sélectionnez la nature du problème" />
+                    <SelectTrigger id="subcategory" className="w-full">
+                      {formData.subcategory ? (
+                        <SelectValue />
+                      ) : (
+                        <span className="text-muted-foreground">Sélectionnez la nature du problème</span>
+                      )}
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="missing">
@@ -355,6 +452,56 @@ export default function NewRequest() {
                       </SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+              )}
+
+              {/* ✅ NOUVEAU: Sélection du destinataire (Enseignant/RP) */}
+              {formData.type === "grade_inquiry" && formData.gradeType && (
+                <div className="space-y-3 p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <Label className="text-base font-semibold text-blue-900 dark:text-blue-200">
+                    {formData.gradeType === "CC" ? "Sélectionnez votre Enseignant *" : "Sélectionnez le Responsable Pédagogique *"}
+                  </Label>
+                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                    {formData.gradeType === "CC" 
+                      ? "Votre requête sera envoyée directement à l'enseignant"
+                      : "Votre requête sera envoyée directement au responsable pédagogique"}
+                  </p>
+                  
+                  {loadingUsers ? (
+                    <div className="text-center py-4">
+                      <p className="text-muted-foreground">Chargement des utilisateurs...</p>
+                    </div>
+                  ) : (
+                    <Select 
+                      value={formData.routed_to || ""} 
+                      onValueChange={(value) => 
+                        setFormData(prev => ({ ...prev, routed_to: value }))
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue 
+                          placeholder={formData.gradeType === "CC" ? "Choisir un enseignant" : "Choisir un responsable pédagogique"} 
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(formData.gradeType === "CC" ? teachers : responsablePedagogiques).map((user) => (
+                          <SelectItem key={user.id} value={user.id}>
+                            {user.first_name} {user.last_name}
+                            {user.email && <span className="text-muted-foreground text-xs"> ({user.email})</span>}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+
+                  {formData.routed_to && (
+                    <Alert className="bg-green-50/50 border-green-200">
+                      <CheckCircle2 className="h-4 w-4 text-green-600" />
+                      <AlertDescription className="text-green-800">
+                        ✅ Votre requête sera envoyée directement au destinataire sélectionné
+                      </AlertDescription>
+                    </Alert>
+                  )}
                 </div>
               )}
 

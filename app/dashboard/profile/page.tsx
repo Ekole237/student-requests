@@ -1,91 +1,39 @@
-import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import type { Student, Teacher, Profile } from "@/lib/types";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { User, BookOpen, Mail, Phone, MapPin } from "lucide-react";
+import { User, Mail, Building2, Key } from "lucide-react";
+import { getUser } from "@/lib/auth";
+import type { User as AuthUser } from "@/lib/backend-types";
 
-import ProfileDetailsForm from "./profile-details-form";
-import ProfileForm from "./profile-form";
-import TeacherProfileForm from "./teacher-profile-form";
-
-// Force dynamic rendering to prevent pre-rendering issues with Supabase
 export const dynamic = 'force-dynamic';
 
 export default async function ProfilePage() {
-  const supabase = await createClient();
+  const user = await getUser() as AuthUser | null;
 
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-
-  if (userError || !user) {
+  if (!user) {
     redirect("/auth/login");
   }
 
-  const { data: profileData, error: profileError } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single();
+  const getRoleLabel = (roleName: string) => {
+    const roleMap: Record<string, { label: string; emoji: string }> = {
+      etudiant: { label: 'Étudiant', emoji: '👨‍🎓' },
+      enseignant: { label: 'Enseignant', emoji: '👨‍🏫' },
+      responsable_pedagogique: { label: 'Responsable Pédagogique', emoji: '📊' },
+      admin: { label: 'Administrateur', emoji: '👤' },
+    };
+    return roleMap[roleName] || { label: roleName, emoji: '👤' };
+  };
 
-  if (profileError || !profileData) {
-    console.error("Error fetching profile:", profileError);
-    return <p>Error loading profile.</p>;
-  }
-
-  const { data: userRolesData, error: userRolesError } = await supabase
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", user.id);
-
-  if (userRolesError) {
-    console.error("Error fetching user roles:", userRolesError);
-    return <p>Error loading user roles.</p>;
-  }
-
-  const roles = userRolesData?.map((ur) => ur.role) || [];
-  const isStudent = roles.includes("student");
-  const isTeacher = roles.includes("teacher");
-
-  let studentProfile: Student | null = null;
-  if (isStudent) {
-    const { data: studentData, error: studentError } = await supabase
-      .from("students")
-      .select("*")
-      .eq("user_id", user.id)
-      .single();
-    if (studentError && studentError.code !== 'PGRST116') {
-      console.error("Error fetching student profile:", studentError);
-      return <p>Error loading student profile.</p>;
-    }
-    studentProfile = studentData;
-  }
-
-  let teacherProfile: Teacher | null = null;
-  if (isTeacher) {
-    const { data: teacherData, error: teacherError } = await supabase
-      .from("teachers")
-      .select("*")
-      .eq("user_id", user.id)
-      .single();
-    if (teacherError && teacherError.code !== 'PGRST116') {
-      console.error("Error fetching teacher profile:", teacherError);
-      return <p>Error loading teacher profile.</p>;
-    }
-    teacherProfile = teacherData;
-  }
+  const role = getRoleLabel(user.role.name);
 
   return (
     <div className="min-h-screen bg-background py-8 px-4">
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold mb-2">Mon Profil</h1>
           <p className="text-muted-foreground">
-            Gérez vos informations personnelles et préférences
+            Consultez et gérez vos informations personnelles
           </p>
         </div>
 
@@ -95,275 +43,163 @@ export default async function ProfilePage() {
             <div className="flex items-start justify-between">
               <div className="space-y-4">
                 <div>
-                  <h2 className="text-2xl font-bold">
-                    {profileData.first_name} {profileData.last_name}
+                  <h2 className="text-3xl font-bold">
+                    {user.firstName} {user.lastName}
                   </h2>
-                  <p className="text-muted-foreground text-sm">{profileData.email}</p>
+                  <p className="text-muted-foreground text-sm mt-1">{user.email}</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {roles.map((role) => (
-                    <Badge key={role} variant="secondary" className="capitalize">
-                      {role === "student" && "👨‍🎓 Étudiant"}
-                      {role === "teacher" && "👨‍🏫 Enseignant"}
-                      {role === "admin" && "👤 Administrateur"}
-                      {role === "department_head" && "📊 Responsable Pédagogique"}
-                    </Badge>
-                  ))}
+                  <Badge variant="secondary" className="text-base px-3 py-1">
+                    {role.emoji} {role.label}
+                  </Badge>
+                  <Badge variant={user.isActive ? "default" : "destructive"}>
+                    {user.isActive ? "✓ Actif" : "✗ Inactif"}
+                  </Badge>
                 </div>
               </div>
               <div className="text-right text-sm text-muted-foreground">
-                <p>Compte créé le</p>
-                <p className="font-medium">
-                  {new Date(profileData.created_at).toLocaleDateString("fr-FR")}
-                </p>
+                <p>Matricule</p>
+                <p className="font-mono text-lg font-semibold text-foreground">{user.matricule}</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Tabs for different sections */}
-        <Tabs defaultValue="general" className="w-full">
-          <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3">
-            <TabsTrigger value="general" className="flex items-center gap-2">
-              <User className="h-4 w-4" />
-              <span className="hidden sm:inline">Général</span>
-            </TabsTrigger>
-            {isStudent && (
-              <TabsTrigger value="student" className="flex items-center gap-2">
-                <BookOpen className="h-4 w-4" />
-                <span className="hidden sm:inline">Études</span>
-              </TabsTrigger>
-            )}
-            {isTeacher && (
-              <TabsTrigger value="teacher" className="flex items-center gap-2">
-                <BookOpen className="h-4 w-4" />
-                <span className="hidden sm:inline">Enseignement</span>
-              </TabsTrigger>
-            )}
-          </TabsList>
+        {/* Information Grid */}
+        <div className="grid md:grid-cols-2 gap-6 mb-6">
+          {/* Personal Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <User className="h-5 w-5" />
+                Informations Personnelles
+              </CardTitle>
+              <CardDescription>
+                Vos données de base
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Prénom</p>
+                <p className="text-sm font-semibold">{user.firstName}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Nom</p>
+                <p className="text-sm font-semibold">{user.lastName}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Matricule</p>
+                <p className="text-sm font-mono font-semibold">{user.matricule}</p>
+              </div>
+              {user.phone && (
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Téléphone</p>
+                  <p className="text-sm font-semibold">{user.phone}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
-          {/* General Information Tab */}
-          <TabsContent value="general" className="space-y-6 mt-6">
-            <div className="grid md:grid-cols-2 gap-6">
-              {/* Contact Information */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Mail className="h-5 w-5" />
-                    Informations de Contact
-                  </CardTitle>
-                  <CardDescription>
-                    Vos coordonnées de contact
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ProfileDetailsForm initialProfileData={profileData} />
-                </CardContent>
-              </Card>
+          {/* Contact Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Mail className="h-5 w-5" />
+                Contact
+              </CardTitle>
+              <CardDescription>
+                Coordonnées de contact
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Email Principal</p>
+                <p className="text-sm font-semibold break-all">{user.email}</p>
+              </div>
+              {user.personalEmail && (
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Email Personnel</p>
+                  <p className="text-sm font-semibold break-all">{user.personalEmail}</p>
+                </div>
+              )}
+              {user.phone && (
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Téléphone</p>
+                  <p className="text-sm font-semibold">{user.phone}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
-              {/* Account Information */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <User className="h-5 w-5" />
-                    Informations du Compte
-                  </CardTitle>
-                  <CardDescription>
-                    Détails de votre compte
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Email</p>
-                      <p className="text-sm font-semibold">{profileData.email}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">
-                        Date de création
-                      </p>
-                      <p className="text-sm font-semibold">
-                        {new Date(profileData.created_at).toLocaleDateString("fr-FR")}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">
-                        Dernière mise à jour
-                      </p>
-                      <p className="text-sm font-semibold">
-                        {new Date(profileData.updated_at).toLocaleDateString("fr-FR")}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Statut</p>
-                      <Badge variant={profileData.is_active ? "default" : "destructive"}>
-                        {profileData.is_active ? "✓ Actif" : "✗ Inactif"}
-                      </Badge>
-                    </div>
+          {/* Account Status */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Key className="h-5 w-5" />
+                Statut du Compte
+              </CardTitle>
+              <CardDescription>
+                État de votre compte
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Rôle</p>
+                <Badge variant="outline" className="capitalize">
+                  {role.emoji} {role.label}
+                </Badge>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Statut</p>
+                <Badge variant={user.isActive ? "default" : "destructive"}>
+                  {user.isActive ? "✓ Actif" : "✗ Inactif"}
+                </Badge>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Authentification 2FA</p>
+                <Badge variant={user.twoFactorEnabled ? "default" : "secondary"}>
+                  {user.twoFactorEnabled ? "✓ Activée" : "✗ Désactivée"}
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Academic/Department Information */}
+          {(user.departement || user.promotion) && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5" />
+                  Affiliation Académique
+                </CardTitle>
+                <CardDescription>
+                  Département et promotion
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {user.departement && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Département</p>
+                    <Badge variant="secondary">
+                      {user.departement.name}
+                    </Badge>
                   </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          {/* Student Information Tab */}
-          {isStudent && (
-            <TabsContent value="student" className="space-y-6 mt-6">
-              <div className="grid md:grid-cols-2 gap-6">
-                {/* Academic Information */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <BookOpen className="h-5 w-5" />
-                      Informations Académiques
-                    </CardTitle>
-                    <CardDescription>
-                      Détails de votre scolarité
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {studentProfile ? (
-                      <div className="space-y-3">
-                        <div>
-                          <p className="text-sm font-medium text-muted-foreground">
-                            Matricule
-                          </p>
-                          <p className="text-sm font-semibold">{studentProfile.matricule}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-muted-foreground">
-                            Promotion
-                          </p>
-                          <Badge variant="outline">{studentProfile.promotion}</Badge>
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-muted-foreground">
-                            Filière
-                          </p>
-                          <Badge variant="outline">{studentProfile.filiere}</Badge>
-                        </div>
-                        {studentProfile.date_naissance && (
-                          <div>
-                            <p className="text-sm font-medium text-muted-foreground">
-                              Date de naissance
-                            </p>
-                            <p className="text-sm font-semibold">
-                              {new Date(studentProfile.date_naissance).toLocaleDateString(
-                                "fr-FR"
-                              )}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">
-                        Informations académiques non disponibles
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Edit Student Profile */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <BookOpen className="h-5 w-5" />
-                      Modifier Profil Académique
-                    </CardTitle>
-                    <CardDescription>
-                      Mettez à jour vos informations académiques
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <ProfileForm
-                      initialStudentData={studentProfile}
-                      userId={user.id}
-                    />
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
+                )}
+                {user.promotion && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Promotion</p>
+                    <Badge variant="outline">
+                      {user.promotion.code} - Niveau {user.promotion.niveau}
+                      {user.promotion.isTroncCommun && ' (TCO)'}
+                    </Badge>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           )}
+        </div>
 
-          {/* Teacher Information Tab */}
-          {isTeacher && (
-            <TabsContent value="teacher" className="space-y-6 mt-6">
-              <div className="grid md:grid-cols-2 gap-6">
-                {/* Teaching Information */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <BookOpen className="h-5 w-5" />
-                      Informations Pédagogiques
-                    </CardTitle>
-                    <CardDescription>
-                      Détails de votre enseignement
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {teacherProfile ? (
-                      <div className="space-y-3">
-                        {teacherProfile.specialization && (
-                          <div>
-                            <p className="text-sm font-medium text-muted-foreground">
-                              Spécialisation
-                            </p>
-                            <Badge variant="outline">
-                              {teacherProfile.specialization}
-                            </Badge>
-                          </div>
-                        )}
-                        {teacherProfile.office_number && (
-                          <div>
-                            <p className="text-sm font-medium text-muted-foreground">
-                              Numéro de Bureau
-                            </p>
-                            <p className="text-sm font-semibold">
-                              {teacherProfile.office_number}
-                            </p>
-                          </div>
-                        )}
-                        <div>
-                          <p className="text-sm font-medium text-muted-foreground">
-                            Compte créé
-                          </p>
-                          <p className="text-sm font-semibold">
-                            {new Date(teacherProfile.created_at).toLocaleDateString(
-                              "fr-FR"
-                            )}
-                          </p>
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">
-                        Informations pédagogiques non disponibles
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
 
-                {/* Edit Teacher Profile */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <BookOpen className="h-5 w-4" />
-                      Modifier Profil Pédagogique
-                    </CardTitle>
-                    <CardDescription>
-                      Mettez à jour vos informations pédagogiques
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <TeacherProfileForm
-                      initialTeacherData={teacherProfile}
-                      userId={user.id}
-                    />
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
-          )}
-        </Tabs>
       </div>
     </div>
   );

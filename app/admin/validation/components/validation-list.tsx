@@ -31,10 +31,10 @@ export default function ValidationList({ requests }: ValidationListProps) {
 
   // Filter requests
   const filtered = requests_.filter((req) => {
-    const matchType = filterType === "all" || req.type === filterType;
+    const matchType = filterType === "all" || req.request_type === filterType;
     const matchSearch =
       req.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      req.student_id.toLowerCase().includes(searchTerm.toLowerCase());
+      req.created_by.toLowerCase().includes(searchTerm.toLowerCase());
     return matchType && matchSearch;
   });
 
@@ -142,7 +142,7 @@ export default function ValidationList({ requests }: ValidationListProps) {
                     <div className="flex items-center gap-3 mb-2 flex-wrap">
                       <h3 className="font-semibold truncate text-lg">{request.title}</h3>
                       <Badge variant="secondary" className="flex-shrink-0">
-                        {getTypeLabel(request.type)}
+                        {getTypeLabel(request.request_type)}
                       </Badge>
                       {request.grade_type && (
                         <Badge variant="outline" className="flex-shrink-0">
@@ -158,7 +158,7 @@ export default function ValidationList({ requests }: ValidationListProps) {
                     <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
                       <div>
                         <p className="text-xs">Étudiant</p>
-                        <p className="font-medium text-foreground">{request.student_id}</p>
+                        <p className="font-medium text-foreground">{request.created_by}</p>
                       </div>
                       <div>
                         <p className="text-xs">Soumise le</p>

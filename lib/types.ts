@@ -1,5 +1,17 @@
 export type AppRole = "admin" | "student" | "department_head" | "teacher";
 
+export type RequestPlatformPermission =
+  | "requetes:create"
+  | "requetes:view-own"
+  | "requetes:view-routed-to-me"
+  | "requetes:view-department"
+  | "requetes:validate"
+  | "requetes:route"
+  | "requetes:resolve"
+  | "requetes:view-all"
+  | "system:manage"
+  | "*";
+
 export type RequestStatus = "submitted" | "validated" | "assigned" | "processing" | "completed" | "rejected";
 export type ValidationStatus = "pending" | "validated" | "rejected";
 export type FinalStatus = "approved" | "rejected" | null;
@@ -35,6 +47,16 @@ export interface UserRole {
   user_id: string;
   role: AppRole;
   created_at: string;
+}
+
+export interface RequestPlatformRole {
+  id: string;
+  adonis_role: string;
+  name: string;
+  permissions: RequestPlatformPermission[];
+  description: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Student {
@@ -99,64 +121,78 @@ export interface Notification {
 }
 
 export interface Requete {
-  // === INFOS ÉTUDIANT (IMMUABLES APRÈS SOUMISSION) ===
+  // === IDENTIFIANTS ===
   id: string;
-  student_id: string;              // FK → profiles.id
-  type: RequestTypeEnum;            // grade_inquiry, absence_justification, etc.
-  title: string;                    // IMMUTABLE après soumission
-  description: string;              // IMMUTABLE après soumission
-  attachment_url: string | null;    // Premier fichier - IMMUTABLE
-  created_at: string;               // IMMUTABLE
+  created_by: string;                    // FK → users.id (l'étudiant qui a créé)
+  assigned_to: string | null;            // FK → users.id (admin assigné)
+  routed_to: string | null;              // FK → users.id (destinataire du routage)
+  resolved_by: string | null;            // FK → users.id (qui a résolu)
   
-  // === METADATA POUR ROUTAGE INTELLIGENT ===
-  course_id: string | null;         // Pour trouver l'enseignant (CC)
-  course_name: string | null;       // Ex: "Mathématiques"
-  subject_code: string | null;      // Ex: "MATH101"
-  grade_type: GradeType;            // CC (Contrôle Continu) vs SN (Session Normale)
+  // === CONTENU ===
+  title: string;                         // Titre de la requête
+  description: string;                   // Description détaillée
+  request_type: RequestTypeEnum;         // grade_inquiry, absence_justification, etc.
+  priority: RequestPriority;             // low, normal, high, urgent
   
-  // === VALIDATION CONFORMITÉ (ADMIN) ===
-  validation_status: ValidationStatus;  // pending → validated / rejected
-  rejection_reason: string | null;      // Motif du rejet si non-conforme
+  // === CONTEXTE ACADÉMIQUE ===
+  department_code: string;               // Code du département (Adonis)
+  promotion_code: string | null;         // Code de la promotion (optionnel)
+  subject: string | null;                // Sujet ou cours concerné
+  grade_type: GradeType;                 // CC ou SN (si applicable)
+  grade_value: number | null;            // Valeur de la note (si applicable)
   
-  // === ROUTAGE (IMMUABLE APRÈS VALIDATION) ===
-  routed_to_id: string | null;          // Destinataire: teacher/RP/director/member
-  routed_to_role: AppRole | null;       // Rôle du destinataire
-  destination_member_id: string | null; // Pour "other" type
+  // === STATUTS ===
+  status: RequestStatus;                 // submitted, validated, assigned, processing, completed, rejected
+  validation_status: ValidationStatus;   // pending, validated, rejected
+  final_status: FinalStatus;             // approved, rejected, ou null
   
-  // === ASSIGNATION & VALIDATION ===
-  assigned_to: string | null;           // Admin qui a validé
-  assigned_to_date: string | null;
+  // === NOTES ET RAISONS ===
+  internal_notes: string | null;         // Notes internes
+  rejection_reason: string | null;       // Raison du rejet de validation
+  final_comment: string | null;          // Commentaire final après résolution
   
-  // === TRAITEMENT (DESTINATAIRE) ===
-  status: RequestStatus;                // submitted → validated → processing → completed/rejected
-  processing_comment: string | null;    // Commentaire du destinataire pendant traitement
+  // === ROUTAGE (ENRICHISSEMENT) ===
+  routed_to_role: AppRole | null;        // Rôle du destinataire (enrichissement)
   
-  // === RÉSOLUTION ===
-  final_status: FinalStatus;            // Résultat: approved / rejected / null
-  final_comment: string | null;         // Motif final
+  // === TRAITEMENT (ENRICHISSEMENT) ===
+  processing_comment: string | null;     // Commentaire pendant le traitement
+  
+  // === ATTACHMENTS (LEGACY FIELD) ===
+  attachment_url: string | null;         // URL du premier attachment (legacy)
+  
+  // === TIMESTAMPS ===
+  submitted_at: string;
+  validated_at: string | null;
+  assigned_at: string | null;
+  routed_at: string | null;
   resolved_at: string | null;
-  resolved_by: string | null;           // Qui a décidé (teacher/RP/director)
+  completed_at: string | null;
+  // === TRAITEMENT (DESTINATAIRE) ===
+  // Statuts et commentaires gérés via status et autres champs ci-dessus
   
-  // === METADATA ===
-  priority: RequestPriority;
-  updated_at: string;
+  // === MÉTADONNÉES ===
+  created_at: string;                    // Quand a été créée
+  updated_at: string;                    // Dernière mise à jour
 }
 
 export interface RequeteComplete extends Requete {
-  matricule: string | null;
-  promotion: string | null;
-  filiere: string | null;
+  // Informations de l'étudiant (enrichissement)
   student_first_name: string | null;
   student_last_name: string | null;
   student_email: string | null;
   student_phone: string | null;
+  matricule: string | null;
+  promotion: string | null;
+  filiere: string | null;
+  
+  // Informations de l'assigné (enrichissement)
   assigned_first_name: string | null;
   assigned_last_name: string | null;
   assigned_email: string | null;
+  
+  // Compteurs
   message_count: number;
   attachment_count: number;
-  // Note: 'messages' and 'attachments' arrays are not directly included in this view.
-  // They need to be fetched separately if detailed lists are required.
 }
 
 

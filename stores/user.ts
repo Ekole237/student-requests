@@ -1,36 +1,117 @@
 import { create } from "zustand";
-import { createClient } from "@/lib/supabase/client";
-import type { AppRole } from "@/lib/types";
+import type { AppRole, RequestPlatformPermission } from "@/lib/types";
+import type { Promotion } from "@/lib/backend-types";
+import { getCurrentUser } from "@/app/actions/user";
+import { getUserPermissions, hasPermission } from "@/lib/permissions";
 
 interface UserState {
   userRole: AppRole | null;
   isAdmin: boolean;
+  userName: string | null;
+  userEmail: string | null;
+  userMatricule: string | null;
+  promotion: Promotion | null;
+  requestPermissions: RequestPlatformPermission[];
   fetchUserRole: () => Promise<void>;
+  clearUser: () => void;
+  hasPermission: (permission: RequestPlatformPermission) => boolean;
 }
 
-export const useUserStore = create<UserState>((set) => ({
+export const useUserStore = create<UserState>((set, get) => ({
   userRole: null,
   isAdmin: false,
+  userName: null,
+  userEmail: null,
+  userMatricule: null,
+  promotion: null,
+  requestPermissions: [],
+  clearUser: () => {
+    console.log('Clearing user from store');
+    set({
+      userRole: null,
+      isAdmin: false,
+      userName: null,
+      userEmail: null,
+      userMatricule: null,
+      promotion: null,
+      requestPermissions: [],
+    });
+  },
+  hasPermission: (permission: RequestPlatformPermission) => {
+    const state = get();
+    if (state.requestPermissions.includes('*')) {
+      return true;
+    }
+    return state.requestPermissions.includes(permission);
+  },
   fetchUserRole: async () => {
-    const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    try {
+      console.log('fetchUserRole called from client');
+      
+      // Call server action to get user data
+      const user = await getCurrentUser();
+      
+      console.log('User from server action:', user);
 
-    if (user) {
-      const { data: isAdmin, error } = await supabase.rpc("has_role", {
-        _user_id: user.id,
-        _role: "admin",
-      });
-
-      if (error) {
-        console.error("Error checking user role:", error);
-        set({ userRole: null, isAdmin: false });
+      if (user && user.email) {
+        const roleName = user.role?.name || "etudiant";
+        const isAdmin = roleName === "admin";
+        const roleMap: Record<string, AppRole> = {
+          etudiant: "student",
+          enseignant: "teacher",
+          responsable_pedagogique: "department_head",
+          directeur: "department_head",
+          admin: "admin",
+        };
+        
+        const appRole = (roleMap[roleName] || "student") as AppRole;
+        const fullName = user.firstName && user.lastName 
+          ? `${user.firstName} ${user.lastName}` 
+          : user.email;
+        
+        // Get permissions for this user
+        const permissions = getUserPermissions(user);
+        
+        console.log('User store - setting state:', {
+          email: user.email,
+          fullName,
+          role: appRole,
+          promotion: user.promotion,
+          permissions,
+        });
+        
+        set({
+          userRole: appRole,
+          isAdmin,
+          userName: fullName,
+          userEmail: user.email,
+          userMatricule: user.matricule,
+          promotion: user.promotion || null,
+          requestPermissions: permissions,
+        });
       } else {
-        set({ userRole: isAdmin ? "admin" : "student", isAdmin });
+        console.log('No user found, clearing state');
+        set({ 
+          userRole: null, 
+          isAdmin: false, 
+          userName: null, 
+          userEmail: null,
+          userMatricule: null,
+          promotion: null,
+          requestPermissions: [],
+        });
       }
-    } else {
-      set({ userRole: null, isAdmin: false });
+    } catch (error) {
+      console.error("Error fetching user role:", error);
+      set({ 
+        userRole: null, 
+        isAdmin: false, 
+        userName: null, 
+        userEmail: null,
+        userMatricule: null,
+        promotion: null,
+        requestPermissions: [],
+      });
     }
   },
 }));

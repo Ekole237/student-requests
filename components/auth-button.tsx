@@ -97,12 +97,6 @@ export function AuthButton() {
           <span className="sm:hidden">Login</span>
         </Link>
       </Button>
-      <Button asChild size="sm" variant={"default"}>
-        <Link href="/auth/sign-up">
-          <span className="hidden sm:inline">S'inscrire</span>
-          <span className="sm:hidden">Sign up</span>
-        </Link>
-      </Button>
     </div>
   );
 }

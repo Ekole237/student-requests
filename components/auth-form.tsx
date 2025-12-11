@@ -3,10 +3,12 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { login } from '@/app/actions/auth';
+import { Eye, EyeOff } from 'lucide-react';
 
 export function AuthForm() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -84,14 +86,28 @@ export function AuthForm() {
         <label htmlFor="password" className="text-sm font-medium">
           Mot de passe
         </label>
-        <input
-          type="password"
-          id="password"
-          name="password"
-          required
-          disabled={isLoading}
-          className="w-full px-3 py-2 border rounded-md"
-        />
+        <div className="relative">
+          <input
+            type={showPassword ? 'text' : 'password'}
+            id="password"
+            name="password"
+            required
+            disabled={isLoading}
+            className="w-full px-3 py-2 pr-10 border rounded-md"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            disabled={isLoading}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 disabled:opacity-50"
+          >
+            {showPassword ? (
+              <EyeOff className="h-4 w-4" />
+            ) : (
+              <Eye className="h-4 w-4" />
+            )}
+          </button>
+        </div>
       </div>
 
       <button
